@@ -12,13 +12,18 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize)]
 pub struct Configuration {
     /// The E-Mail address to use for logging in to Factorial
+    #[serde(default = "default_mail")]
     pub email: String,
+    /// The location you work from, either office or home
+    #[serde(default = "default_location")]
+    pub location_type: String,
 }
 impl Configuration {
     /// Generates a default configuration
     fn default() -> Configuration {
         Configuration {
-            email: String::from(""),
+            email: default_mail(),
+            location_type: default_location(),
         }
     }
 
@@ -61,6 +66,7 @@ impl Configuration {
         let mut content = String::new();
         config_file.read_to_string(&mut content)?;
         let config: Configuration = serde_json::from_str(content.as_str())?;
+        config.write_config()?;
         Ok(config)
     }
 
@@ -82,4 +88,10 @@ impl Configuration {
         self.write_config()?;
         Ok(())
     }
+}
+fn default_mail() -> String {
+    "".to_string()
+}
+fn default_location() -> String {
+    "office".to_string()
 }
