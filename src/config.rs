@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{self, stdout, Read, Write},
+    io::{Read, Write},
     path::PathBuf,
 };
 
@@ -77,7 +77,7 @@ impl Configuration {
     pub fn prompt_for_email(&mut self) -> anyhow::Result<()> {
         let mut buffer = String::new();
         println!("Enter E-Mail address: ");
-        io::stdin().read_line(&mut buffer)?;
+        std::io::stdin().read_line(&mut buffer)?;
         self.email = String::from(&buffer.trim().to_owned());
         self.write_config()?;
         Ok(())
