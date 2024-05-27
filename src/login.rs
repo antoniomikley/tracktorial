@@ -228,8 +228,6 @@ impl Credential {
         }
         redirect_url = response.headers().get(header::LOCATION).unwrap();
         client.get(redirect_url.to_str()?).send()?;
-        // Setzt factorial_data_cookie.
-        client.get("https://api.factorialhr.com/companies").send()?;
         // Return authentifizierten Client.
         Ok(client)
     }
