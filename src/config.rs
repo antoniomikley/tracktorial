@@ -17,6 +17,12 @@ pub struct Configuration {
     /// The location you work from, either office or home
     #[serde(default = "default_location")]
     pub location_type: String,
+    /// The Id Factorial uses to identify the user
+    #[serde(default = "default_user_id")]
+    pub user_id: String,
+    /// The default amount of working hours per week
+    #[serde(default = "default_hours")]
+    pub working_hours: f32,
 }
 impl Configuration {
     /// Generates a default configuration
@@ -24,6 +30,8 @@ impl Configuration {
         Configuration {
             email: default_mail(),
             location_type: default_location(),
+            user_id: default_user_id(),
+            working_hours: default_hours(),
         }
     }
 
@@ -94,4 +102,10 @@ fn default_mail() -> String {
 }
 fn default_location() -> String {
     "office".to_string()
+}
+fn default_user_id() -> String {
+    "".to_string()
+}
+fn default_hours() -> f32 {
+    0.00
 }

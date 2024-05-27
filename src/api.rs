@@ -15,6 +15,8 @@ pub enum ApiEndpoint {
     ClockIn,
     ClockOut,
     Shifts,
+    Leaves,
+    Holidays,
 }
 impl ApiEndpoint {
     fn path(&self) -> String {
@@ -24,6 +26,8 @@ impl ApiEndpoint {
             Self::ClockIn => String::from("/attendance/shifts/clock_in/"),
             Self::ClockOut => String::from("/attendance/shifts/clock_out/"),
             Self::Shifts => String::from("/attendance/shifts/"),
+            Self::Leaves => String::from("/leaves/"),
+            Self::Holidays => String::from("/company_holidays/"),
         }
     }
 }
@@ -32,7 +36,6 @@ impl ApiEndpoint {
 pub struct FactorialApi {
     client: blocking::Client,
     config: Configuration,
-    employee_id: String,
 }
 
 impl FactorialApi {
@@ -44,39 +47,59 @@ impl FactorialApi {
     /// - could not retrieve your employee id
     pub fn new(
         credential: login::Credential,
-        config: Configuration,
+        mut config: Configuration,
     ) -> anyhow::Result<FactorialApi> {
         // Attempt to login to Factorial
         let client = credential.authenticate_client()?;
-        // Sets factorial_data cookie which also contains the users access_id
-        let response = client.get("https://api.factorialhr.com/companies").send()?;
-        let mut access_id = String::new();
-        for cookie in response.cookies() {
-            // Get the access_id out of the cookie
-            let needle = "access_id%22%3A";
-            let haystack = cookie.value();
-            if haystack.contains(needle) {
-                let i = haystack.find(needle).unwrap();
-                let id = haystack.get(i + needle.len()..haystack.len()).unwrap();
-                access_id = id.get(..id.find('%').unwrap()).unwrap().to_string();
+        if config.user_id == "" {
+            // Sets factorial_data cookie which also contains the users access_id
+            let response = client.get("https://api.factorialhr.com/companies").send()?;
+            let mut access_id = String::new();
+            for cookie in response.cookies() {
+                // Get the access_id out of the cookie
+                let needle = "access_id%22%3A";
+                let haystack = cookie.value();
+                if haystack.contains(needle) {
+                    let i = haystack.find(needle).unwrap();
+                    let id = haystack.get(i + needle.len()..haystack.len()).unwrap();
+                    access_id = id.get(..id.find('%').unwrap()).unwrap().to_string();
+                }
             }
-        }
-        // Get a list of all employees
-        let response = client.get("https://api.factorialhr.com/employees").send()?;
-        let emloyees: Vec<serde_json::Value> = response.json()?;
-        let mut employee_id = String::new();
-        // Get the employee with your access_id
-        for employee in emloyees {
-            if employee["access_id"].to_string() == access_id {
-                employee_id = employee["id"].to_string();
+            // Get a list of all employees
+            let response = client.get("https://api.factorialhr.com/employees").send()?;
+            let emloyees: Vec<serde_json::Value> = response.json()?;
+            // Get the employee with your access_id
+            for employee in emloyees {
+                if employee["access_id"].to_string() == access_id {
+                    config.user_id = employee["id"].to_string();
+                }
             }
         }
 
-        Ok(FactorialApi {
-            client,
-            config,
-            employee_id,
-        })
+        if config.working_hours == 0.0 {
+            let response = client
+                .get("https://api.factorialhr.com/contracts/contract_versions")
+                .query(&[("employee_ids[]", &config.user_id)])
+                .send()?;
+            let mut contracts: Vec<serde_json::Value> = response.json()?;
+            if contracts.len() == 0 {
+                return Err(anyhow!("The employee has no contract. Unable to get the amount of working hours. Manually setting the amount in the configuration file can bypass this issue."));
+            }
+            let hours_string = contracts.pop().unwrap()["working_hours"].to_string();
+            // breaks if working_hours_frequency is not "weekly"
+            if hours_string.len() != 4 {
+                return Err(anyhow!("The amount of working hours is either in a format that cannot be parsed or you work an unusual amount of hours a week"));
+            }
+            let hours_float = format!(
+                "{}.{}",
+                hours_string.get(0..2).unwrap(),
+                hours_string.get(2..4).unwrap()
+            )
+            .parse::<f32>()?;
+            config.working_hours = hours_float;
+        }
+        config.write_config()?;
+        Ok(FactorialApi { client, config })
     }
 
     /// Starts a shift at the given time.
@@ -139,7 +162,7 @@ impl FactorialApi {
             .client
             .get("https://api.factorialhr.com".to_string() + &ApiEndpoint::Shifts.path())
             .query(&[
-                ("employee_id", self.employee_id.as_str()),
+                ("employee_id", self.config.user_id.as_str()),
                 ("month", &month.to_string()),
                 ("year", &year.to_string()),
             ])
