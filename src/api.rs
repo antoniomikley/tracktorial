@@ -1,7 +1,7 @@
 use std::{collections::HashMap, ops::Div};
 
 use anyhow::anyhow;
-use chrono::{Datelike, Local};
+use chrono::{DateTime, Datelike, Local};
 use reqwest::{
     blocking::{self, Response},
     StatusCode,
@@ -120,7 +120,7 @@ impl FactorialApi {
     /// - there already is an open shift
     /// - there is an ongoing break
     /// - there is just about anything else happening at the given time
-    pub fn clock_in(&self, time: &str) -> anyhow::Result<()> {
+    pub fn clock_in(&self, time: DateTime<Local>) -> anyhow::Result<()> {
         let response = self.post_api_call(ApiEndpoint::ClockIn, time)?;
         match response.status() {
             StatusCode::CREATED => Ok(()),
@@ -132,7 +132,7 @@ impl FactorialApi {
     /// Ends a shift at the given time.
     /// # Errors
     /// Returns an error if there currently is no open_shift
-    pub fn clock_out(&self, time: &str) -> anyhow::Result<()> {
+    pub fn clock_out(&self, time: DateTime<Local>) -> anyhow::Result<()> {
         let response = self.post_api_call(ApiEndpoint::ClockOut, time)?;
         match response.status() {
             StatusCode::OK => Ok(()),
@@ -144,7 +144,7 @@ impl FactorialApi {
     /// Returns an error if:
     /// - there already is an ongoing break
     /// - there is no open shift at that day to take a break from
-    pub fn break_start(&self, time: &str) -> anyhow::Result<()> {
+    pub fn break_start(&self, time: DateTime<Local>) -> anyhow::Result<()> {
         let response = self.post_api_call(ApiEndpoint::BreakStart, time)?;
         match response.status() {
             StatusCode::CREATED => Ok(()),
@@ -158,7 +158,7 @@ impl FactorialApi {
     /// Ends an ongoing break at the given time.
     /// # Errors
     /// Returns an error if there is no ongoing break.
-    pub fn break_end(&self, time: &str) -> anyhow::Result<()> {
+    pub fn break_end(&self, time: DateTime<Local>) -> anyhow::Result<()> {
         let response = self.post_api_call(ApiEndpoint::BreakEnd, time)?;
         match response.status() {
             StatusCode::OK => Ok(()),
@@ -166,7 +166,7 @@ impl FactorialApi {
         }
     }
 
-    pub fn delete_all_shifts(&self, time: chrono::DateTime<Local>) -> anyhow::Result<()> {
+    pub fn delete_all_shifts(&self, time: DateTime<Local>) -> anyhow::Result<()> {
         let month = time.month();
         let year = time.year();
         let day = time.day();
@@ -199,7 +199,11 @@ impl FactorialApi {
         Ok(())
     }
 
-    fn post_api_call(&self, endpoint: ApiEndpoint, time: &str) -> anyhow::Result<Response> {
+    fn post_api_call(
+        &self,
+        endpoint: ApiEndpoint,
+        time: DateTime<Local>,
+    ) -> anyhow::Result<Response> {
         let response = self
             .client
             .post(String::from("https://api.factorialhr.com") + &endpoint.path())
@@ -208,9 +212,10 @@ impl FactorialApi {
         Ok(response)
     }
 
-    fn make_body(&self, time: &str) -> HashMap<String, String> {
+    fn make_body(&self, time: DateTime<Local>) -> HashMap<String, String> {
+        let time = time.to_rfc3339();
         let mut params = HashMap::new();
-        params.insert("now".to_string(), time.to_string());
+        params.insert("now".to_string(), time);
         params.insert(
             "location_type".to_string(),
             self.config.location_type.clone(),
