@@ -1,4 +1,8 @@
+use std::fmt::write;
+
 use clap::{Args, Parser, Subcommand};
+
+use crate::config::Configuration;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -28,9 +32,23 @@ struct ShiftStart {
     /// start a shift either now or at <TIME> and end it after <DURATION> or its default value
     #[arg(short, long, default_value = "")]
     duration: String,
+    /// the started shift should end at <END>
+    #[arg(
+        short,
+        long,
+        default_value = "",
+        requires("time"),
+        conflicts_with("duration")
+    )]
+    end: String,
     /// override existing shifts and ignore holidays and vacations
     #[arg(short, long)]
     force: bool,
+}
+impl ShiftStart {
+    fn run(&self) -> anyhow::Result<()> {
+        todo!()
+    }
 }
 /// end an ongoing shift
 #[derive(Args)]
@@ -91,6 +109,9 @@ struct Auto {
     /// override existing shifts, ignore holidays and vacations
     #[arg(short, long)]
     force: bool,
+    /// add a random offset to all time related values
+    #[arg(short, long)]
+    randomize: bool,
 }
 /// configure tracktorial
 #[derive(Args)]
