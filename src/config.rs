@@ -23,6 +23,13 @@ pub struct Configuration {
     /// The default amount of working hours per week
     #[serde(default = "default_hours")]
     pub working_hours: f32,
+
+    #[serde(default = "default_working_days")]
+    pub working_week_days: Vec<String>,
+    /// The preffered amount of working hours every day, defaults to the working_hours divided by
+    /// the amount of working week days
+    #[serde(default = "default_duration")]
+    pub shift_duration: String,
 }
 impl Configuration {
     /// Generates a default configuration
@@ -32,6 +39,8 @@ impl Configuration {
             location_type: default_location(),
             user_id: default_user_id(),
             working_hours: default_hours(),
+            working_week_days: default_working_days(),
+            shift_duration: default_duration(),
         }
     }
 
@@ -108,4 +117,10 @@ fn default_user_id() -> String {
 }
 fn default_hours() -> f32 {
     0.00
+}
+fn default_duration() -> String {
+    "".to_string()
+}
+fn default_working_days() -> Vec<String> {
+    Vec::new()
 }
