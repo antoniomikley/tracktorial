@@ -120,7 +120,7 @@ impl FactorialApi {
     /// - there already is an open shift
     /// - there is an ongoing break
     /// - there is just about anything else happening at the given time
-    pub fn clock_in(&self, time: DateTime<Local>) -> anyhow::Result<()> {
+    pub fn shift_start(&self, time: DateTime<Local>) -> anyhow::Result<()> {
         let response = self.post_api_call(ApiEndpoint::ClockIn, time)?;
         match response.status() {
             StatusCode::CREATED => Ok(()),
@@ -132,7 +132,7 @@ impl FactorialApi {
     /// Ends a shift at the given time.
     /// # Errors
     /// Returns an error if there currently is no open_shift
-    pub fn clock_out(&self, time: DateTime<Local>) -> anyhow::Result<()> {
+    pub fn shift_end(&self, time: DateTime<Local>) -> anyhow::Result<()> {
         let response = self.post_api_call(ApiEndpoint::ClockOut, time)?;
         match response.status() {
             StatusCode::OK => Ok(()),

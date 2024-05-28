@@ -1,8 +1,9 @@
-use std::fmt::write;
+use std::{fmt::write, io::stderr, process::exit};
 
+use chrono::{DateTime, Local};
 use clap::{Args, Parser, Subcommand};
 
-use crate::config::Configuration;
+use crate::{api::FactorialApi, config::Configuration, login::Credential, time};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -46,8 +47,46 @@ struct ShiftStart {
     force: bool,
 }
 impl ShiftStart {
-    fn run(&self) -> anyhow::Result<()> {
-        todo!()
+    fn run(&self, api: FactorialApi) -> anyhow::Result<()> {
+        let start: DateTime<Local>;
+        if self.now == true {
+            start = Local::now();
+        } else {
+            start = match time::parse_date_time(&self.time) {
+                Ok(t) => t,
+                Err(_) => {
+                    eprintln!("Could not parse time. Time has to be either in the format of 'year-month-dayThour:minute:second', 'hour:minute:second', 'hour:minute', or 'hour'");
+                    exit(0)
+                }
+            }
+        }
+        if self.force == true {
+            api.delete_all_shifts(start)?;
+        }
+        api.shift_start(start)?;
+        if self.duration.len() != 0 || self.end.len() != 0 {
+            let end: DateTime<Local>;
+            if self.duration.len() != 0 {
+                let duration = match time::parse_duration(&self.duration) {
+                    Ok(d) => d,
+                    Err(_) => {
+                        eprintln!("Could not parse duration. duration has to be in the format of for example '14h30m11s', '14h30m', '14h', '30m', '11s'.");
+                        exit(0)
+                    }
+                };
+                end = start + duration;
+            } else {
+                end = match time::parse_date_time(&self.end) {
+                    Ok(t) => t,
+                    Err(_) => {
+                        eprintln!("Could not parse time. Time has to be either in the format of 'year-month-dayThour:minute:second', 'hour:minute:second', 'hour:minute', or 'hour'");
+                        exit(0)
+                    }
+                }
+            }
+            api.shift_end(end)?;
+        }
+        Ok(())
     }
 }
 /// end an ongoing shift
@@ -59,6 +98,24 @@ struct ShiftEnd {
     /// end shift at the specified time
     #[arg(short, long, default_value = "", conflicts_with("now"))]
     time: String,
+}
+impl ShiftEnd {
+    fn run(&self, api: FactorialApi) -> anyhow::Result<()> {
+        let end: DateTime<Local>;
+        if self.now == true {
+            end = Local::now();
+        } else {
+            end = match time::parse_date_time(&self.time) {
+                Ok(t) => t,
+                Err(_) => {
+                    eprintln!("Could not parse time. Time has to be either in the format of 'year-month-dayThour:minute:second', 'hour:minute:second', 'hour:minute', or 'hour'");
+                    exit(0)
+                }
+            }
+        }
+        api.shift_end(end)?;
+        Ok(())
+    }
 }
 /// take a break from an ongoing shift
 #[derive(Args)]
@@ -118,4 +175,31 @@ struct Auto {
 struct Config {}
 pub fn parse_args() {
     let cli = Cli::parse();
+    let api = get_api();
+    match cli.command {
+        Commands::ShiftStart(c) => c.run(api).expect("Something went wrong"),
+        Commands::ShiftEnd(c) => c.run(api).expect("Something went wrong"),
+        Commands::BreakStart(_) => todo!(),
+        Commands::BreakEnd(_) => todo!(),
+        Commands::Auto(_) => todo!(),
+        Commands::Config(_) => todo!(),
+    }
+}
+
+fn get_api() -> FactorialApi {
+    let mut config = Configuration::get_config()
+        .expect("Could either not create or read the configuration file.");
+    if config.email.len() == 0 {
+        config
+            .prompt_for_email()
+            .expect("Could either not read email from stdin or save it to the configuration file");
+    }
+    let mut cred = Credential::new_without_password(&config.email);
+    if cred.get_password().is_err() {
+        cred.ask_for_password().expect("Could not access keyring.")
+    }
+
+    let api = FactorialApi::new(cred, config)
+        .expect("Could not authenticate to Factorial. Credentials might be wrong.");
+    api
 }
