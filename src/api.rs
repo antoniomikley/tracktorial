@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Div};
 
 use anyhow::anyhow;
 use chrono::{Datelike, Local};
@@ -97,6 +97,18 @@ impl FactorialApi {
             )
             .parse::<f32>()?;
             config.working_hours = hours_float;
+            // set working_week_days
+
+            let days_string = &contracts.pop().unwrap()["working_week_days"]
+                .as_str()
+                .unwrap()
+                .to_owned();
+            let days: Vec<String> = days_string.split(',').map(|s| s.to_owned()).collect();
+            config.working_week_days = days;
+            config.shift_duration = config
+                .working_hours
+                .div(config.working_week_days.len() as f32)
+                .to_string();
         }
         config.write_config()?;
         Ok(FactorialApi { client, config })
