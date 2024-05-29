@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use chrono::{DateTime, Duration, Local, NaiveTime};
+use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, NaiveTime};
 
 pub fn parse_duration(time: &str) -> anyhow::Result<Duration> {
     let mut formatter = String::new();
@@ -21,7 +21,6 @@ pub fn parse_date_time(date_time: &str) -> anyhow::Result<DateTime<Local>> {
     let today = Local::now();
     if date_time.contains('T') {
         let date_time_with_offset = format!("{date_time}{}", today.offset().to_string());
-        println!("{date_time_with_offset}");
         let time = DateTime::parse_from_rfc3339(&date_time_with_offset)?;
         return Ok(time.into());
     }
@@ -38,4 +37,33 @@ pub fn parse_date_time(date_time: &str) -> anyhow::Result<DateTime<Local>> {
         Err(_) => {}
     };
     Err(anyhow!("Could not parse the time."))
+}
+
+pub fn parse_date(date: &str) -> anyhow::Result<DateTime<Local>> {
+    let today = Local::now();
+    match NaiveDate::parse_from_str(date, "%Y-%m-%d") {
+        Ok(ymd) => {
+            return Ok(today
+                .with_year(ymd.year_ce().1.try_into().unwrap())
+                .unwrap()
+                .with_month(ymd.month())
+                .unwrap()
+                .with_day(ymd.day())
+                .unwrap())
+        }
+        Err(_) => {}
+    };
+    match NaiveDate::parse_from_str(date, "%d.%m.%Y") {
+        Ok(ymd) => {
+            return Ok(today
+                .with_year(ymd.year_ce().1.try_into().unwrap())
+                .unwrap()
+                .with_month(ymd.month())
+                .unwrap()
+                .with_day(ymd.day())
+                .unwrap())
+        }
+        Err(_) => {}
+    }
+    Err(anyhow!("Could not parte date."))
 }
