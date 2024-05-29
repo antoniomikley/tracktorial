@@ -13,7 +13,7 @@ struct Cli {
 enum Commands {
     ShiftStart(ShiftStart),
     ShiftEnd(ShiftEnd),
-    BreakStart(BreakEnd),
+    BreakStart(BreakStart),
     BreakEnd(BreakEnd),
     Auto(Auto),
     Config(Config),
