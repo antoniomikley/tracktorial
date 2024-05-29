@@ -1,9 +1,7 @@
-use std::{fmt::write, io::stderr, process::exit};
-
+use crate::{api::FactorialApi, config::Configuration, login::Credential, time};
 use chrono::{DateTime, Local};
 use clap::{Args, Parser, Subcommand};
-
-use crate::{api::FactorialApi, config::Configuration, login::Credential, time};
+use std::process::exit;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
