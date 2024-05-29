@@ -3,6 +3,7 @@ use reqwest::{blocking, header, redirect, StatusCode};
 use scraper::{Html, Selector};
 
 /// Representation of an E-Mail address and a password that can be used to login to Factorial
+#[derive(Clone)]
 pub struct Credential {
     email: String,
     password: String,
@@ -42,6 +43,11 @@ impl Credential {
         Ok(password)
     }
 
+    pub fn reset_password(&mut self) -> anyhow::Result<()> {
+        keyring::Entry::new("tracktorial", &self.email)?.delete_password()?;
+        self.password = String::from("");
+        Ok(())
+    }
     /// Promps the user for the password and saves it in the keyring coupled to the
     /// given E-Mail address.
     ///
