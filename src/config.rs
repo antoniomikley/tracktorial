@@ -9,7 +9,7 @@ use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 
 /// Represents the applications Configuration
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Configuration {
     /// The E-Mail address to use for logging in to Factorial
     #[serde(default = "default_mail")]
