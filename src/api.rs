@@ -6,8 +6,13 @@ use reqwest::{
     blocking::{self, Response},
     StatusCode,
 };
+use serde::Serialize;
 
-use crate::{config::Configuration, login};
+use crate::{
+    config::Configuration,
+    login,
+    time::{parse_date, FreeDay, HalfDay},
+};
 
 pub enum ApiEndpoint {
     BreakStart,
@@ -107,8 +112,7 @@ impl FactorialApi {
             config.working_week_days = days;
             config.shift_duration = config
                 .working_hours
-                .div(config.working_week_days.len() as f32)
-                .to_string();
+                .div(config.working_week_days.len() as f32);
         }
         config.write_config()?;
         Ok(FactorialApi { client, config })
@@ -191,14 +195,137 @@ impl FactorialApi {
                             + &shift_id,
                     )
                     .send()?;
-                if response.status() != StatusCode::OK {
-                    return Err(anyhow!(""));
+                if response.status() != StatusCode::NO_CONTENT {
+                    return Err(anyhow!("what happened"));
                 }
             }
         }
         Ok(())
     }
 
+    pub fn get_free_days(
+        &self,
+        from: DateTime<Local>,
+        to: DateTime<Local>,
+    ) -> anyhow::Result<Vec<FreeDay>> {
+        let mut free_days: Vec<FreeDay> = Vec::new();
+        let from_ymd = format!("{}", from.format("%Y-%m-%d"));
+        let to_ymd = format!("{}", to.format("%Y-%m-%d"));
+
+        let response = self
+            .client
+            .get("https://api.factorialhr.com".to_string() + &ApiEndpoint::Holidays.path())
+            .send()?;
+
+        let company_holidays: Vec<serde_json::Value> = response.json()?;
+
+        for holiday in company_holidays {
+            let day = parse_date(holiday["date"].as_str().unwrap()).unwrap();
+            let half: HalfDay;
+            if holiday["half_day"].is_null() {
+                half = HalfDay::WholeDay;
+            } else if holiday["half_day"].as_str().unwrap() == "end_of_day" {
+                half = HalfDay::EndOfDay;
+            } else {
+                half = HalfDay::StartOfDay;
+            }
+            free_days.push(FreeDay { day, half })
+        }
+
+        let response = self
+            .client
+            .get("https://api.factorialhr.com".to_string() + &ApiEndpoint::Leaves.path())
+            .query(&[
+                ("employee_id", self.config.user_id.as_str()),
+                ("terminated", "true"),
+                ("from", from_ymd.as_str()),
+                ("to", to_ymd.as_str()),
+            ])
+            .send()?;
+        let vacations: Vec<serde_json::Value> = response.json()?;
+        for vacay in vacations {
+            let mut start = parse_date(vacay["start_on"].as_str().unwrap()).unwrap();
+            let end = parse_date(vacay["finish_on"].as_str().unwrap()).unwrap();
+            while start <= end {
+                free_days.push(FreeDay {
+                    day: start,
+                    half: HalfDay::WholeDay,
+                });
+                start = start.checked_add_days(chrono::Days::new(1)).unwrap();
+            }
+        }
+
+        let work_days: Vec<chrono::Weekday> = self
+            .config
+            .working_week_days
+            .iter()
+            .map(|s| s.parse::<chrono::Weekday>().unwrap())
+            .collect();
+        let mut start = from.clone();
+        let end = to.clone();
+
+        while start <= end {
+            if !work_days.contains(&start.weekday()) {
+                free_days.push(FreeDay {
+                    day: start,
+                    half: HalfDay::WholeDay,
+                })
+            }
+            start = start.checked_add_days(chrono::Days::new(1)).unwrap();
+        }
+
+        Ok(free_days)
+    }
+    pub fn make_shift(
+        &self,
+        start: chrono::DateTime<Local>,
+        end: chrono::DateTime<Local>,
+    ) -> anyhow::Result<()> {
+        self.client
+            .post("https://api.factorialhr.com/attendance/shifts")
+            .json(&JsonBody::new(
+                start,
+                end,
+                self.get_period_id(start).unwrap(),
+                false,
+            ))
+            .send()?;
+        Ok(())
+    }
+    pub fn make_break(
+        &self,
+        start: chrono::DateTime<Local>,
+        end: chrono::DateTime<Local>,
+    ) -> anyhow::Result<()> {
+        self.client
+            .post("https://api.factorialhr.com/attendance/shifts")
+            .json(&JsonBody::new(
+                start,
+                end,
+                self.get_period_id(start).unwrap(),
+                true,
+            ))
+            .send()?;
+        Ok(())
+    }
+
+    fn get_period_id(&self, date: chrono::DateTime<Local>) -> anyhow::Result<usize> {
+        let response = self
+            .client
+            .get("https://api.factorialhr.com/attendance/periods")
+            .query(&[
+                ("year", date.year().to_string().as_str()),
+                ("month", date.month().to_string().as_str()),
+                ("employee_id", self.config.user_id.as_str()),
+            ])
+            .send()?;
+        let mut periods: Vec<serde_json::Value> = response.json().unwrap();
+        Ok(periods.pop().unwrap()["id"]
+            .as_u64()
+            .unwrap()
+            .try_into()
+            .unwrap())
+    }
     fn post_api_call(
         &self,
         endpoint: ApiEndpoint,
@@ -222,5 +349,39 @@ impl FactorialApi {
         );
         params.insert("source".to_string(), "desktop".to_string());
         params
+    }
+}
+#[derive(Serialize)]
+struct JsonBody {
+    clock_in: String,
+    clock_out: String,
+    date: String,
+    day: usize,
+    location_type: String,
+    minutes: Option<usize>,
+    period_id: usize,
+    source: String,
+    time_settings_break_configuration_id: Option<usize>,
+    workable: bool,
+}
+impl JsonBody {
+    pub fn new(
+        start: chrono::DateTime<Local>,
+        end: chrono::DateTime<Local>,
+        period_id: usize,
+        is_break: bool,
+    ) -> Self {
+        JsonBody {
+            clock_in: start.format("%H:%M").to_string(),
+            clock_out: end.format("%H:%M").to_string(),
+            date: start.format("%Y-%m-%d").to_string(),
+            day: start.format("%d").to_string().parse::<usize>().unwrap(),
+            location_type: "office".to_string(),
+            minutes: None,
+            period_id,
+            source: "desktop".to_string(),
+            time_settings_break_configuration_id: None,
+            workable: !is_break,
+        }
     }
 }

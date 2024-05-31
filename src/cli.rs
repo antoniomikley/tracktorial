@@ -1,7 +1,12 @@
-use crate::{api::FactorialApi, config::Configuration, login::Credential, time};
-use chrono::{DateTime, Local};
+use crate::{
+    api::FactorialApi,
+    config::Configuration,
+    login::Credential,
+    time::{self, parse_date, parse_date_time, parse_duration, FreeDay, HalfDay, WorkDay},
+};
+use chrono::{DateTime, Datelike, Local, NaiveTime};
 use clap::{Args, Parser, Subcommand};
-use std::process::exit;
+use std::{process::exit, u16};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -53,7 +58,7 @@ impl ShiftStart {
             start = match time::parse_date_time(&self.time) {
                 Ok(t) => t,
                 Err(_) => {
-                    eprintln!("Could not parse time. Time has to be either in the format of 'year-month-dayThour:minute:second', 'hour:minute:second', 'hour:minute', or 'hour'");
+                    eprintln!("{}", TIME_ERR_MSG);
                     exit(0)
                 }
             }
@@ -73,7 +78,7 @@ impl ShiftStart {
                 let duration = match time::parse_duration(&self.duration) {
                     Ok(d) => d,
                     Err(_) => {
-                        eprintln!("Could not parse duration. duration has to be in the format of for example '14h30m11s', '14h30m', '14h', '30m', '11s'.");
+                        eprintln!("{}", DUR_ERR_MSG);
                         exit(0)
                     }
                 };
@@ -82,7 +87,7 @@ impl ShiftStart {
                 end = match time::parse_date_time(&self.end) {
                     Ok(t) => t,
                     Err(_) => {
-                        eprintln!("Could not parse time. Time has to be either in the format of 'year-month-dayThour:minute:second', 'hour:minute:second', 'hour:minute', or 'hour'");
+                        eprintln!("{}", TIME_ERR_MSG);
                         exit(0)
                     }
                 }
@@ -110,7 +115,7 @@ impl ShiftEnd {
             end = match time::parse_date_time(&self.time) {
                 Ok(t) => t,
                 Err(_) => {
-                    eprintln!("Could not parse time. Time has to be either in the format of 'year-month-dayThour:minute:second', 'hour:minute:second', 'hour:minute', or 'hour'");
+                    eprintln!("{}", TIME_ERR_MSG);
                     exit(0)
                 }
             }
@@ -152,7 +157,7 @@ impl BreakStart {
             start = match time::parse_date_time(&self.time) {
                 Ok(t) => t,
                 Err(_) => {
-                    eprintln!("Could not parse time. Time has to be either in the format of 'year-month-dayThour:minute:second', 'hour:minute:second', 'hour:minute', or 'hour'");
+                    eprintln!("{}", TIME_ERR_MSG);
                     exit(0)
                 }
             }
@@ -167,7 +172,7 @@ impl BreakStart {
                 let duration = match time::parse_duration(&self.duration) {
                     Ok(d) => d,
                     Err(_) => {
-                        eprintln!("Could not parse duration. duration has to be in the format of for example '14h30m11s', '14h30m', '14h', '30m', '11s'.");
+                        eprintln!("{}", DUR_ERR_MSG);
                         exit(0)
                     }
                 };
@@ -176,7 +181,7 @@ impl BreakStart {
                 end = match time::parse_date_time(&self.end) {
                     Ok(t) => t,
                     Err(_) => {
-                        eprintln!("Could not parse time. Time has to be either in the format of 'year-month-dayThour:minute:second', 'hour:minute:second', 'hour:minute', or 'hour'");
+                        eprintln!("{}", TIME_ERR_MSG);
                         exit(0)
                     }
                 }
@@ -206,7 +211,7 @@ impl BreakEnd {
             end = match time::parse_date_time(&self.time) {
                 Ok(t) => t,
                 Err(_) => {
-                    eprintln!("Could not parse time. Time has to be either in the format of 'year-month-dayThour:minute:second', 'hour:minute:second', 'hour:minute', or 'hour'");
+                    eprintln!("{}", TIME_ERR_MSG);
                     exit(0)
                 }
             }
@@ -220,22 +225,26 @@ impl BreakEnd {
 /// manage shifts and breaks automatically
 #[derive(Args)]
 struct Auto {
-    /// start a shift now or at <START> if given, also takes an appropriately sized break
-    #[arg(short, long, conflicts_with("stop"), default_value = "")]
+    /// start to work now, take a break, go home. Uses the default duration if
+    /// <DURATION> or <END> is not given
+    #[arg(short, long, conflicts_with("start"), required_unless_present("start"))]
+    now: bool,
+    /// start a shift now if <NOW> is set or at <START> with the given duration, also takes an appropriately sized break.
+    #[arg(short, long, conflicts_with("end"), default_value = "")]
     duration: String,
-    /// start a shift at <START> until <STOP> or with a given <DURATION>. If neither is present
-    /// the default value is used.
+    /// start a shift at <START> until <END> or with a given <DURATION>. If neither is present
+    /// the default duration is used
     #[arg(long, default_value = "")]
     start: String,
     /// if <START> is given, start a shift lasting until <STOP>. mutually exclusive with
     /// <DURATION>
     #[arg(long, default_value = "")]
-    stop: String,
-    #[arg(long, requires("to"))]
+    end: String,
+    #[arg(long, requires("to"), default_value = "")]
     /// start a shift everyday starting at <FROM> and until <TO> using either <START> and <STOP> or <DURATION> or the default value.
     from: String,
     /// requires <FROM>
-    #[arg(long)]
+    #[arg(long, requires("from"), default_value = "")]
     to: String,
     /// override existing shifts, ignore holidays and vacations
     #[arg(short, long)]
@@ -243,6 +252,107 @@ struct Auto {
     /// add a random offset to all time related values
     #[arg(short, long)]
     randomize: bool,
+}
+
+impl Auto {
+    fn run(&self, api: FactorialApi) {
+        let mut start: chrono::DateTime<Local>;
+        let duration: chrono::Duration;
+        let mut from: chrono::DateTime<Local>;
+        let to: chrono::DateTime<Local>;
+        let config = Configuration::get_config().unwrap();
+
+        if self.start != "" {
+            start = match parse_date_time(&self.start) {
+                Ok(t) => t,
+                Err(_) => {
+                    eprintln!("{}", TIME_ERR_MSG);
+                    exit(0)
+                }
+            };
+        } else {
+            start = Local::now();
+        }
+
+        if self.duration != "" {
+            duration = match parse_duration(&self.duration) {
+                Ok(d) => d,
+                Err(_) => {
+                    eprintln!("{}", DUR_ERR_MSG);
+                    exit(0)
+                }
+            }
+        } else if self.end != "" {
+            let end_date = match parse_date_time(&self.end) {
+                Ok(t) => t,
+                Err(_) => {
+                    eprintln!("{}", TIME_ERR_MSG);
+                    exit(0)
+                }
+            };
+            duration = end_date.signed_duration_since(start);
+        } else {
+            let dur_secs = config.shift_duration * 60.0 * 60.0;
+            duration = chrono::Duration::seconds(dur_secs.floor() as i64);
+        }
+
+        if self.from != "" {
+            from = match parse_date(&self.from) {
+                Ok(t) => t,
+                Err(_) => {
+                    eprintln!("{}", TIME_ERR_MSG);
+                    exit(0)
+                }
+            };
+            to = match parse_date(&self.to) {
+                Ok(t) => t,
+                Err(_) => {
+                    eprintln!("{}", TIME_ERR_MSG);
+                    exit(0)
+                }
+            };
+        } else {
+            let now = Local::now()
+                .with_time(NaiveTime::from_hms_opt(0, 0, 0).unwrap())
+                .unwrap();
+            from = now;
+            to = now;
+        }
+
+        let mut free_days = api.get_free_days(from, to).unwrap();
+        free_days.sort_unstable();
+
+        while from <= to {
+            let needle = free_days.binary_search(&from.into());
+            match needle {
+                Ok(num) => {
+                    if free_days.get(num).unwrap().half == HalfDay::WholeDay {
+                        from = from.checked_add_days(chrono::Days::new(1)).unwrap();
+                        continue;
+                    }
+                }
+                Err(_) => {}
+            }
+            if self.force {
+                api.delete_all_shifts(from).unwrap();
+            }
+            let work_day: WorkDay;
+            start = from.with_time(start.time()).unwrap();
+            if self.randomize {
+                work_day = WorkDay::randomize_shift(start, duration, config.max_rand_range);
+            } else {
+                work_day = WorkDay::standard_shift(start, duration);
+            }
+
+            api.make_shift(work_day.clock_in, work_day.break_start)
+                .unwrap();
+            api.make_break(work_day.break_start, work_day.break_end)
+                .unwrap();
+            api.make_shift(work_day.break_end, work_day.clock_out)
+                .unwrap();
+            from = from.checked_add_days(chrono::Days::new(1)).unwrap();
+        }
+    }
 }
 /// configure tracktorial
 #[derive(Args)]
@@ -253,6 +363,10 @@ struct Config {
     /// reset your password
     #[arg(short, long)]
     reset_password: bool,
+    /// set the maximum amount of deviation in minutes from specified times and durations when the
+    /// randomization option is enabled.
+    #[arg(short, long, default_value = "16")]
+    rand_range: String,
 }
 impl Config {
     fn run(&self) {
@@ -275,6 +389,19 @@ impl Config {
             let mut cred = Credential::new_without_password(&config.email);
             cred.reset_password().unwrap();
         }
+        if self.rand_range != "16" {
+            config.max_rand_range = match self.rand_range.parse::<u16>() {
+                Ok(num) => num,
+                Err(_) => {
+                    eprintln!("rand_range has to be a valid number between 0 and 120");
+                    exit(0)
+                }
+            };
+            if config.max_rand_range > 120 {
+                eprintln!("rand_range has to be a valid number between 0 and 120");
+                exit(0)
+            }
+        }
     }
 }
 pub fn parse_args() {
@@ -284,7 +411,7 @@ pub fn parse_args() {
         Commands::ShiftEnd(c) => c.run(get_api()),
         Commands::BreakStart(c) => c.run(get_api()),
         Commands::BreakEnd(c) => c.run(get_api()),
-        Commands::Auto(_) => todo!(),
+        Commands::Auto(c) => c.run(get_api()),
         Commands::Config(c) => c.run(),
     }
 }
@@ -315,3 +442,6 @@ fn get_api() -> FactorialApi {
     }
     exit(0)
 }
+
+const DUR_ERR_MSG: &str = "Could not parse duration. Duration has to be in the format of for example '14h30m11s', '14h30m', '14h', '30m', '11s'.";
+const TIME_ERR_MSG: &str = "Could not parse time. Time has to be either in the format of 'year-month-dayThour:minute:second', 'hour:minute:second', 'hour:minute', or 'hour'";

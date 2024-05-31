@@ -29,7 +29,11 @@ pub struct Configuration {
     /// The preffered amount of working hours every day, defaults to the working_hours divided by
     /// the amount of working week days
     #[serde(default = "default_duration")]
-    pub shift_duration: String,
+    pub shift_duration: f32,
+    /// The maximum amount in minutes that the shift and break will be started before or after the
+    /// specified time if the randomization option is enabled.
+    #[serde(default = "default_rand_range")]
+    pub max_rand_range: u16,
 }
 impl Configuration {
     /// Generates a default configuration
@@ -41,6 +45,7 @@ impl Configuration {
             working_hours: default_hours(),
             working_week_days: default_working_days(),
             shift_duration: default_duration(),
+            max_rand_range: default_rand_range(),
         }
     }
 
@@ -118,9 +123,12 @@ fn default_user_id() -> String {
 fn default_hours() -> f32 {
     0.00
 }
-fn default_duration() -> String {
-    "".to_string()
+fn default_duration() -> f32 {
+    0.0
 }
 fn default_working_days() -> Vec<String> {
     Vec::new()
+}
+fn default_rand_range() -> u16 {
+    30
 }

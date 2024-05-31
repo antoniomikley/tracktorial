@@ -2606,6 +2606,7 @@ dependencies = [
  "clap",
  "directories",
  "keyring",
+ "rand",
  "reqwest",
  "rpassword",
  "scraper",
