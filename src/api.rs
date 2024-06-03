@@ -401,11 +401,7 @@ impl FactorialApi {
         );
         params.insert("source".to_string(), "desktop".to_string());
 
-        let response = self
-            .client
-            .post(String::from("https://api.factorialhr.com") + &endpoint.url())
-            .json(&params)
-            .send()?;
+        let response = self.client.post(endpoint.url()).json(&params).send()?;
         Ok(response)
     }
 }
