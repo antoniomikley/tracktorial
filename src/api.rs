@@ -102,8 +102,8 @@ impl FactorialApi {
             )
             .parse::<f32>()?;
             config.working_hours = hours_float;
-            // set working_week_days
 
+            // set working_week_days
             let days_string = &contracts.pop().unwrap()["working_week_days"]
                 .as_str()
                 .unwrap()
@@ -123,7 +123,7 @@ impl FactorialApi {
     /// Returns an error if:
     /// - there already is an open shift
     /// - there is an ongoing break
-    /// - there is just about anything else happening at the given time
+    /// - there is a shift between the given time and now
     pub fn shift_start(&self, time: DateTime<Local>) -> anyhow::Result<()> {
         let response = self.post_api_call(ApiEndpoint::ClockIn, time)?;
         match response.status() {
@@ -135,7 +135,9 @@ impl FactorialApi {
 
     /// Ends a shift at the given time.
     /// # Errors
-    /// Returns an error if there currently is no open_shift
+    /// Returns an error if:
+    /// - there currently is no open_shift
+    /// - there is a shift between the given timen and now
     pub fn shift_end(&self, time: DateTime<Local>) -> anyhow::Result<()> {
         let response = self.post_api_call(ApiEndpoint::ClockOut, time)?;
         match response.status() {
@@ -143,11 +145,13 @@ impl FactorialApi {
             _ => Err(anyhow!("Could not close shift")),
         }
     }
+
     /// Starts a break at the given time.
     /// # Errors
     /// Returns an error if:
     /// - there already is an ongoing break
     /// - there is no open shift at that day to take a break from
+    /// - there is a shift between the given timen and now
     pub fn break_start(&self, time: DateTime<Local>) -> anyhow::Result<()> {
         let response = self.post_api_call(ApiEndpoint::BreakStart, time)?;
         match response.status() {
@@ -161,7 +165,9 @@ impl FactorialApi {
 
     /// Ends an ongoing break at the given time.
     /// # Errors
-    /// Returns an error if there is no ongoing break.
+    /// Returns an error if:
+    /// - there is no ongoing break.
+    /// - there is a shift between the given timen and now
     pub fn break_end(&self, time: DateTime<Local>) -> anyhow::Result<()> {
         let response = self.post_api_call(ApiEndpoint::BreakEnd, time)?;
         match response.status() {
@@ -170,6 +176,10 @@ impl FactorialApi {
         }
     }
 
+    /// Deletes all shifts and breaks at the day of the given time and does nothing
+    /// if there are no shifts or breaks.
+    /// # Errors
+    /// Returns an Error if the operation could not be completed.
     pub fn delete_all_shifts(&self, time: DateTime<Local>) -> anyhow::Result<()> {
         let month = time.month();
         let year = time.year();
@@ -203,6 +213,14 @@ impl FactorialApi {
         Ok(())
     }
 
+    /// Retrieves all days on which no work has to be done. Includes holidays, paid time off and
+    /// weekends.
+    /// # Errors
+    /// Returns an Error if:
+    /// - the request could not be sent
+    /// - the response body could not be parsed
+    /// # Panics
+    /// Panics if the received response body does not contain the required information.
     pub fn get_free_days(
         &self,
         from: DateTime<Local>,
@@ -276,39 +294,72 @@ impl FactorialApi {
 
         Ok(free_days)
     }
+
+    /// Creates a shift lasting from start to end
+    /// # Errors
+    /// Returns an Error if:
+    /// - the request could not be sent
+    /// - the shift could not be created, possibly because start or end overlap with an existing
+    /// shift or break
+    /// # Panics
+    /// Panics if the period id could not be successfully retrieved.
     pub fn make_shift(
         &self,
         start: chrono::DateTime<Local>,
         end: chrono::DateTime<Local>,
     ) -> anyhow::Result<()> {
-        self.client
+        let response = self
+            .client
             .post("https://api.factorialhr.com/attendance/shifts")
-            .json(&JsonBody::new(
+            .json(&ShiftData::new(
                 start,
                 end,
+                &self.config.location_type,
                 self.get_period_id(start).unwrap(),
                 false,
             ))
             .send()?;
+        if response.status() != StatusCode::CREATED {
+            return Err(anyhow!("Something went wrong. Shift was not created."));
+        }
         Ok(())
     }
+
+    /// Creates a break lasting from start to end
+    /// # Errors
+    /// Returns an Error if:
+    /// - the request could not be sent
+    /// - the shift could not be created, possibly because start or end overlap with an existing
+    /// shift or break
+    /// # Panics
+    /// Panics if the period id could not be successfully retrieved.
     pub fn make_break(
         &self,
         start: chrono::DateTime<Local>,
         end: chrono::DateTime<Local>,
     ) -> anyhow::Result<()> {
-        self.client
+        let response = self
+            .client
             .post("https://api.factorialhr.com/attendance/shifts")
-            .json(&JsonBody::new(
+            .json(&ShiftData::new(
                 start,
                 end,
+                &self.config.location_type,
                 self.get_period_id(start).unwrap(),
                 true,
             ))
             .send()?;
+        if response.status() != StatusCode::CREATED {
+            return Err(anyhow!("Something went wrong. Break was not created."));
+        }
         Ok(())
     }
 
+    /// retrieves the period id for a given date.
+    /// # Errors
+    /// Returns an error if the request could not be sent.
+    /// # Panics
+    /// Panics if the response could not be parsed.
     fn get_period_id(&self, date: chrono::DateTime<Local>) -> anyhow::Result<usize> {
         let response = self
             .client
@@ -326,20 +377,14 @@ impl FactorialApi {
             .try_into()
             .unwrap())
     }
+
+    /// simple function to make it more convenient to send a post request with a
+    /// preset body.
     fn post_api_call(
         &self,
         endpoint: ApiEndpoint,
         time: DateTime<Local>,
     ) -> anyhow::Result<Response> {
-        let response = self
-            .client
-            .post(String::from("https://api.factorialhr.com") + &endpoint.path())
-            .json(&self.make_body(time))
-            .send()?;
-        Ok(response)
-    }
-
-    fn make_body(&self, time: DateTime<Local>) -> HashMap<String, String> {
         let time = time.to_rfc3339();
         let mut params = HashMap::new();
         params.insert("now".to_string(), time);
@@ -348,11 +393,20 @@ impl FactorialApi {
             self.config.location_type.clone(),
         );
         params.insert("source".to_string(), "desktop".to_string());
-        params
+
+        let response = self
+            .client
+            .post(String::from("https://api.factorialhr.com") + &endpoint.path())
+            .json(&params)
+            .send()?;
+        Ok(response)
     }
 }
+
+/// All the data required to create a shift or break that can be serialized to json and sent as a
+/// request body.
 #[derive(Serialize)]
-struct JsonBody {
+struct ShiftData {
     clock_in: String,
     clock_out: String,
     date: String,
@@ -364,19 +418,21 @@ struct JsonBody {
     time_settings_break_configuration_id: Option<usize>,
     workable: bool,
 }
-impl JsonBody {
-    pub fn new(
+
+impl ShiftData {
+    fn new(
         start: chrono::DateTime<Local>,
         end: chrono::DateTime<Local>,
+        location_type: &str,
         period_id: usize,
         is_break: bool,
     ) -> Self {
-        JsonBody {
+        ShiftData {
             clock_in: start.format("%H:%M").to_string(),
             clock_out: end.format("%H:%M").to_string(),
             date: start.format("%Y-%m-%d").to_string(),
             day: start.format("%d").to_string().parse::<usize>().unwrap(),
-            location_type: "office".to_string(),
+            location_type: location_type.to_string(),
             minutes: None,
             period_id,
             source: "desktop".to_string(),
