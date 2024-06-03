@@ -22,17 +22,27 @@ pub enum ApiEndpoint {
     Shifts,
     Leaves,
     Holidays,
+    Companies,
+    Employees,
+    Contracts,
+    Periods,
 }
+
 impl ApiEndpoint {
-    fn path(&self) -> String {
+    fn url(&self) -> String {
+        let base_url = "https://api.factorialhr.com".to_string();
         match self {
-            Self::BreakStart => String::from("/attendance/shifts/break_start/"),
-            Self::BreakEnd => String::from("/attendance/shifts/break_end/"),
-            Self::ClockIn => String::from("/attendance/shifts/clock_in/"),
-            Self::ClockOut => String::from("/attendance/shifts/clock_out/"),
-            Self::Shifts => String::from("/attendance/shifts/"),
-            Self::Leaves => String::from("/leaves/"),
-            Self::Holidays => String::from("/company_holidays/"),
+            Self::Periods => base_url + "/attendance/periods/",
+            Self::Shifts => base_url + "/attendance/shifts/",
+            Self::BreakStart => base_url + "/attendance/shifts/break_start/",
+            Self::BreakEnd => base_url + "/attendance/shifts/break_end/",
+            Self::ClockIn => base_url + "/attendance/shifts/clock_in/",
+            Self::ClockOut => base_url + "/attendance/shifts/clock_out/",
+            Self::Leaves => base_url + "/leaves/",
+            Self::Holidays => base_url + "/company_holidays/",
+            Self::Companies => base_url + "/companies/",
+            Self::Employees => base_url + "/employees/",
+            Self::Contracts => base_url + "/contracts/contract_version/",
         }
     }
 }
@@ -58,7 +68,7 @@ impl FactorialApi {
         let client = credential.authenticate_client()?;
         if config.user_id == "" {
             // Sets factorial_data cookie which also contains the users access_id
-            let response = client.get("https://api.factorialhr.com/companies").send()?;
+            let response = client.get(ApiEndpoint::Companies.url()).send()?;
             let mut access_id = String::new();
             for cookie in response.cookies() {
                 // Get the access_id out of the cookie
@@ -71,7 +81,7 @@ impl FactorialApi {
                 }
             }
             // Get a list of all employees
-            let response = client.get("https://api.factorialhr.com/employees").send()?;
+            let response = client.get(ApiEndpoint::Employees.url()).send()?;
             let emloyees: Vec<serde_json::Value> = response.json()?;
             // Get the employee with your access_id
             for employee in emloyees {
@@ -83,7 +93,7 @@ impl FactorialApi {
 
         if config.working_hours == 0.0 {
             let response = client
-                .get("https://api.factorialhr.com/contracts/contract_versions")
+                .get(ApiEndpoint::Contracts.url())
                 .query(&[("employee_ids[]", &config.user_id)])
                 .send()?;
             let mut contracts: Vec<serde_json::Value> = response.json()?;
@@ -186,7 +196,7 @@ impl FactorialApi {
         let day = time.day();
         let response = self
             .client
-            .get("https://api.factorialhr.com".to_string() + &ApiEndpoint::Shifts.path())
+            .get(ApiEndpoint::Shifts.url())
             .query(&[
                 ("employee_id", self.config.user_id.as_str()),
                 ("month", &month.to_string()),
@@ -201,7 +211,7 @@ impl FactorialApi {
                     .client
                     .delete(
                         "https://api.factorialhr.com".to_string()
-                            + &ApiEndpoint::Shifts.path()
+                            + &ApiEndpoint::Shifts.url()
                             + &shift_id,
                     )
                     .send()?;
@@ -230,10 +240,7 @@ impl FactorialApi {
         let from_ymd = format!("{}", from.format("%Y-%m-%d"));
         let to_ymd = format!("{}", to.format("%Y-%m-%d"));
 
-        let response = self
-            .client
-            .get("https://api.factorialhr.com".to_string() + &ApiEndpoint::Holidays.path())
-            .send()?;
+        let response = self.client.get(ApiEndpoint::Holidays.url()).send()?;
 
         let company_holidays: Vec<serde_json::Value> = response.json()?;
 
@@ -252,7 +259,7 @@ impl FactorialApi {
 
         let response = self
             .client
-            .get("https://api.factorialhr.com".to_string() + &ApiEndpoint::Leaves.path())
+            .get(ApiEndpoint::Leaves.url())
             .query(&[
                 ("employee_id", self.config.user_id.as_str()),
                 ("terminated", "true"),
@@ -310,7 +317,7 @@ impl FactorialApi {
     ) -> anyhow::Result<()> {
         let response = self
             .client
-            .post("https://api.factorialhr.com/attendance/shifts")
+            .post(ApiEndpoint::Shifts.url())
             .json(&ShiftData::new(
                 start,
                 end,
@@ -340,7 +347,7 @@ impl FactorialApi {
     ) -> anyhow::Result<()> {
         let response = self
             .client
-            .post("https://api.factorialhr.com/attendance/shifts")
+            .post(ApiEndpoint::Shifts.url())
             .json(&ShiftData::new(
                 start,
                 end,
@@ -363,7 +370,7 @@ impl FactorialApi {
     fn get_period_id(&self, date: chrono::DateTime<Local>) -> anyhow::Result<usize> {
         let response = self
             .client
-            .get("https://api.factorialhr.com/attendance/periods")
+            .get(ApiEndpoint::Periods.url())
             .query(&[
                 ("year", date.year().to_string().as_str()),
                 ("month", date.month().to_string().as_str()),
@@ -396,7 +403,7 @@ impl FactorialApi {
 
         let response = self
             .client
-            .post(String::from("https://api.factorialhr.com") + &endpoint.path())
+            .post(String::from("https://api.factorialhr.com") + &endpoint.url())
             .json(&params)
             .send()?;
         Ok(response)
