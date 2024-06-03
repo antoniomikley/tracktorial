@@ -209,11 +209,7 @@ impl FactorialApi {
                 let shift_id = shift["id"].to_string();
                 let response = self
                     .client
-                    .delete(
-                        "https://api.factorialhr.com".to_string()
-                            + &ApiEndpoint::Shifts.url()
-                            + &shift_id,
-                    )
+                    .delete(ApiEndpoint::Shifts.url() + &shift_id)
                     .send()?;
                 if response.status() != StatusCode::NO_CONTENT {
                     return Err(anyhow!("what happened"));
