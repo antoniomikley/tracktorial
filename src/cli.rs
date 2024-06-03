@@ -1,10 +1,5 @@
-use crate::{
-    api::FactorialApi,
-    config::Configuration,
-    login::Credential,
-    time::{self, parse_date, parse_date_time, parse_duration, FreeDay, HalfDay, WorkDay},
-};
-use chrono::{DateTime, Datelike, Local, NaiveTime};
+use crate::{api::FactorialApi, config::Configuration, login::Credential, time};
+use chrono::{DateTime, Local, NaiveTime};
 use clap::{Args, Parser, Subcommand};
 use std::{process::exit, u16};
 
@@ -64,13 +59,20 @@ impl ShiftStart {
             }
         }
         if self.force == true {
-            api.delete_all_shifts(start).expect(
-                "There should not really be a case where this happens. Could be wrong tho.",
-            );
+            match api.delete_all_shifts(start) {
+                Ok(_) => {}
+                Err(e) => {
+                    eprintln!("{}", e.to_string());
+                    exit(0)
+                }
+            };
         }
-        if api.shift_start(start).is_err() {
-            eprintln!("Could not start shift. Either there is already an open shift, you are on break, or cosmic rays have flipped a byte in your device or the Factorial server.");
-            exit(0)
+        match api.shift_start(start) {
+            Err(e) => {
+                eprintln!("{}", e.to_string());
+                exit(0)
+            }
+            Ok(_) => {}
         }
         if self.duration.len() != 0 || self.end.len() != 0 {
             let end: DateTime<Local>;
@@ -92,7 +94,13 @@ impl ShiftStart {
                     }
                 }
             }
-            api.shift_end(end).expect("Error handling is hard and I am not shure I am doing it right. This message should never show.");
+            match api.shift_end(end) {
+                Ok(_) => {}
+                Err(e) => {
+                    eprintln!("{}", e.to_string());
+                    exit(0)
+                }
+            };
         }
     }
 }
@@ -120,10 +128,10 @@ impl ShiftEnd {
                 }
             }
         }
-        if api.shift_end(end).is_err() {
-            eprintln!("There is no open shift.");
+        api.shift_end(end).unwrap_or_else(|err| {
+            eprintln!("{}", err.to_string());
             exit(0)
-        }
+        })
     }
 }
 /// take a break from an ongoing shift
@@ -263,7 +271,7 @@ impl Auto {
         let config = Configuration::get_config().unwrap();
 
         if self.start != "" {
-            start = match parse_date_time(&self.start) {
+            start = match time::parse_date_time(&self.start) {
                 Ok(t) => t,
                 Err(_) => {
                     eprintln!("{}", TIME_ERR_MSG);
@@ -275,7 +283,7 @@ impl Auto {
         }
 
         if self.duration != "" {
-            duration = match parse_duration(&self.duration) {
+            duration = match time::parse_duration(&self.duration) {
                 Ok(d) => d,
                 Err(_) => {
                     eprintln!("{}", DUR_ERR_MSG);
@@ -283,7 +291,7 @@ impl Auto {
                 }
             }
         } else if self.end != "" {
-            let end_date = match parse_date_time(&self.end) {
+            let end_date = match time::parse_date_time(&self.end) {
                 Ok(t) => t,
                 Err(_) => {
                     eprintln!("{}", TIME_ERR_MSG);
@@ -297,14 +305,14 @@ impl Auto {
         }
 
         if self.from != "" {
-            from = match parse_date(&self.from) {
+            from = match time::parse_date(&self.from) {
                 Ok(t) => t,
                 Err(_) => {
                     eprintln!("{}", TIME_ERR_MSG);
                     exit(0)
                 }
             };
-            to = match parse_date(&self.to) {
+            to = match time::parse_date(&self.to) {
                 Ok(t) => t,
                 Err(_) => {
                     eprintln!("{}", TIME_ERR_MSG);
@@ -326,7 +334,7 @@ impl Auto {
             let needle = free_days.binary_search(&from.into());
             match needle {
                 Ok(num) => {
-                    if free_days.get(num).unwrap().half == HalfDay::WholeDay {
+                    if free_days.get(num).unwrap().half == time::HalfDay::WholeDay {
                         from = from.checked_add_days(chrono::Days::new(1)).unwrap();
                         continue;
                     }
@@ -336,12 +344,12 @@ impl Auto {
             if self.force {
                 api.delete_all_shifts(from).unwrap();
             }
-            let work_day: WorkDay;
+            let work_day: time::WorkDay;
             start = from.with_time(start.time()).unwrap();
             if self.randomize {
-                work_day = WorkDay::randomize_shift(start, duration, config.max_rand_range);
+                work_day = time::WorkDay::randomize_shift(start, duration, config.max_rand_range);
             } else {
-                work_day = WorkDay::standard_shift(start, duration);
+                work_day = time::WorkDay::standard_shift(start, duration);
             }
 
             api.make_shift(work_day.clock_in, work_day.break_start)
@@ -407,40 +415,13 @@ impl Config {
 pub fn parse_args() {
     let cli = Cli::parse();
     match cli.command {
-        Commands::ShiftStart(c) => c.run(get_api()),
-        Commands::ShiftEnd(c) => c.run(get_api()),
-        Commands::BreakStart(c) => c.run(get_api()),
-        Commands::BreakEnd(c) => c.run(get_api()),
-        Commands::Auto(c) => c.run(get_api()),
+        Commands::ShiftStart(c) => c.run(FactorialApi::get_api()),
+        Commands::ShiftEnd(c) => c.run(FactorialApi::get_api()),
+        Commands::BreakStart(c) => c.run(FactorialApi::get_api()),
+        Commands::BreakEnd(c) => c.run(FactorialApi::get_api()),
+        Commands::Auto(c) => c.run(FactorialApi::get_api()),
         Commands::Config(c) => c.run(),
     }
-}
-
-fn get_api() -> FactorialApi {
-    let mut config = Configuration::get_config()
-        .expect("Could either not create or read the configuration file.");
-    if config.email.len() == 0 {
-        config
-            .prompt_for_email()
-            .expect("Could either not read email from stdin or save it to the configuration file");
-    }
-
-    let mut cred = Credential::new_without_password(&config.email);
-
-    for _ in 0..3 {
-        if cred.get_password().is_err() {
-            cred.ask_for_password().expect("Could not access keyring.")
-        }
-
-        let _api = match FactorialApi::new(cred.clone(), config.clone()) {
-            Ok(api) => return api,
-            Err(_) => {
-                eprintln!("Could not login to Factorial. Credentials might be wrong.");
-                cred.reset_password()
-            }
-        };
-    }
-    exit(0)
 }
 
 const DUR_ERR_MSG: &str = "Could not parse duration. Duration has to be in the format of for example '14h30m11s', '14h30m', '14h', '30m', '11s'.";

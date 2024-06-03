@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Div};
+use std::{collections::HashMap, ops::Div, process::exit};
 
 use anyhow::anyhow;
 use chrono::{DateTime, Datelike, Local};
@@ -10,7 +10,7 @@ use serde::Serialize;
 
 use crate::{
     config::Configuration,
-    login,
+    login::{self, Credential},
     time::{parse_date, FreeDay, HalfDay},
 };
 
@@ -126,6 +126,33 @@ impl FactorialApi {
         }
         config.write_config()?;
         Ok(FactorialApi { client, config })
+    }
+
+    pub fn get_api() -> FactorialApi {
+        let mut config = Configuration::get_config()
+            .expect("Could either not create or read the configuration file.");
+        if config.email.len() == 0 {
+            config.prompt_for_email().expect(
+                "Could either not read email from stdin or save it to the configuration file",
+            );
+        }
+
+        let mut cred = Credential::new_without_password(&config.email);
+
+        for _ in 0..3 {
+            if cred.get_password().is_err() {
+                cred.ask_for_password().expect("Could not access keyring.")
+            }
+
+            let _api = match FactorialApi::new(cred.clone(), config.clone()) {
+                Ok(api) => return api,
+                Err(_) => {
+                    eprintln!("Could not login to Factorial. Credentials might be wrong.");
+                    cred.reset_password()
+                }
+            };
+        }
+        exit(0)
     }
 
     /// Starts a shift at the given time.
