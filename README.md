@@ -67,6 +67,9 @@ tracktorial auto --start 8:00 --duration 8h --force --randomize
 ```
 
 ## Installation
+### Download Release
+Download the latest release. The release includes executables for linux and windows.
+MacOS users will have to build the application from source.
 ### Building from source
 1. Install the [rust toolchain](https://rustup.rs/)
 2. Clone the repo
