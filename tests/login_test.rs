@@ -1,9 +1,5 @@
 use chrono::{DateTime, Datelike, Days, Local, Weekday};
-use tracktorial::{
-    api::{ApiEndpoint, FactorialApi},
-    config::Configuration,
-    login::Credential,
-};
+use tracktorial::{api::FactorialApi, config::Configuration, login::Credential};
 
 #[test]
 fn client_authentication_with_invalid_cred() {
@@ -31,8 +27,8 @@ fn client_authentication_with_valid_cred() {
 #[test]
 fn starting_shift() {
     let sunday = get_next_sunday();
-    let config = Configuration::get_config().unwrap();
-    let api = FactorialApi::get_api(config).unwrap();
+    let mut config = Configuration::get_config().unwrap();
+    let api = FactorialApi::get_api(&mut config).unwrap();
     api.delete_all_shifts(sunday).unwrap();
     let result = api.shift_start(sunday);
     match result.as_ref() {

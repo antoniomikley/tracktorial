@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Div, process::exit};
+use std::{collections::HashMap, ops::Div};
 
 use anyhow::anyhow;
 use chrono::{DateTime, Datelike, Local};
@@ -42,7 +42,7 @@ impl ApiEndpoint {
             Self::Holidays => base_url + "/company_holidays/",
             Self::Companies => base_url + "/companies/",
             Self::Employees => base_url + "/employees/",
-            Self::Contracts => base_url + "/contracts/contract_version/",
+            Self::Contracts => base_url + "/contracts/contract_versions/",
         }
     }
 }
@@ -50,7 +50,7 @@ impl ApiEndpoint {
 /// Provides methods to make calls to the Factorial API
 pub struct FactorialApi {
     client: blocking::Client,
-    config: Configuration,
+    pub config: Configuration,
 }
 
 impl FactorialApi {
@@ -96,7 +96,7 @@ impl FactorialApi {
                 .get(ApiEndpoint::Contracts.url())
                 .query(&[("employee_ids[]", &config.user_id)])
                 .send()?;
-            let mut contracts: Vec<serde_json::Value> = response.json()?;
+            let mut contracts: Vec<serde_json::Value> = response.json().unwrap();
             if contracts.len() == 0 {
                 return Err(anyhow!("The employee has no contract. Unable to get the amount of working hours. Manually setting the amount in the configuration file can bypass this issue."));
             }
@@ -124,13 +124,10 @@ impl FactorialApi {
                 .working_hours
                 .div(config.working_week_days.len() as f32);
         }
-        config.write_config()?;
         Ok(FactorialApi { client, config })
     }
 
-    pub fn get_api() -> FactorialApi {
-        let mut config = Configuration::get_config()
-            .expect("Could either not create or read the configuration file.");
+    pub fn get_api(config: &mut Configuration) -> anyhow::Result<FactorialApi> {
         if config.email.len() == 0 {
             config.prompt_for_email().expect(
                 "Could either not read email from stdin or save it to the configuration file",
@@ -145,14 +142,16 @@ impl FactorialApi {
             }
 
             let _api = match FactorialApi::new(cred.clone(), config.clone()) {
-                Ok(api) => return api,
-                Err(_) => {
-                    eprintln!("Could not login to Factorial. Credentials might be wrong.");
+                Ok(api) => return Ok(api),
+                Err(e) => {
+                    eprintln!("{}", e.to_string());
                     cred.reset_password()
                 }
             };
         }
-        exit(0)
+        Err(anyhow!(
+            "Could not login to Factorial. Credentials might be wrong."
+        ))
     }
 
     /// Starts a shift at the given time.

@@ -1,6 +1,6 @@
 use std::{
-    fs::File,
-    io::{Read, Write},
+    fs::{self, File},
+    io::Write,
     path::PathBuf,
 };
 
@@ -9,7 +9,7 @@ use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 
 /// Represents the applications Configuration
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct Configuration {
     /// The E-Mail address to use for logging in to Factorial
     #[serde(default = "default_mail")]
@@ -84,11 +84,8 @@ impl Configuration {
     /// - Returns an error if the configuration file or its parent directories could not be retrieved or created.
     /// - Returns an error if the configuration files contents are invalid.
     pub fn get_config() -> anyhow::Result<Configuration> {
-        let mut config_file = File::open(Self::get_config_file_path()?)?;
-        let mut content = String::new();
-        config_file.read_to_string(&mut content)?;
-        let config: Configuration = serde_json::from_str(content.as_str())?;
-        config.write_config()?;
+        let content = fs::read_to_string(Self::get_config_file_path()?)?;
+        let config: Configuration = serde_json::from_str(&content)?;
         Ok(config)
     }
 
@@ -98,10 +95,14 @@ impl Configuration {
     /// - Returns an error if the configuration file or its parent directories could not be retrieved or created.
     pub fn write_config(&self) -> anyhow::Result<()> {
         File::create(Self::get_config_file_path()?)?
-            .write_all(serde_json::to_string_pretty(self).unwrap().as_bytes())?;
+            .write_all(serde_json::to_string_pretty(self)?.as_bytes())?;
         Ok(())
     }
 
+    /// Prompt the user for email address
+    /// # Errors
+    /// Return an error if the address could not be read from stdin or could not be written to the
+    /// configuration file.
     pub fn prompt_for_email(&mut self) -> anyhow::Result<()> {
         let mut buffer = String::new();
         println!("Enter E-Mail address: ");
@@ -111,6 +112,7 @@ impl Configuration {
         Ok(())
     }
 }
+
 fn default_mail() -> String {
     "".to_string()
 }

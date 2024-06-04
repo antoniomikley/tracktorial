@@ -91,7 +91,7 @@ impl Credential {
             return Err(anyhow!("Should have received 200 OK, but did not."));
         }
         // Extrahiere das authenticity_token aus dem Body des letzten Requests.
-        let mut response_body = Html::parse_document(&response.text()?);
+        let mut response_body = Html::parse_document(&response.text().expect("hello"));
         let mut selector = Selector::parse(r#"input[name="authenticity_token"]"#)
             .expect("Could not parse CSS selector group.");
         let authenticity_token = match response_body.select(&selector).next() {
@@ -126,12 +126,14 @@ impl Credential {
         }
         redirect_url = response.headers().get(header::LOCATION).unwrap();
         let request = client.get(redirect_url.to_str()?).build()?;
-        response = client.execute(request.try_clone().unwrap())?;
+        response = client.execute(request.try_clone().unwrap()).unwrap();
 
         // Response zu SAML Request enthält Daten, die für das nächste Login Formular
         // benötigt werden.
-        let mut json = Self::extract_json_from_config_variable_in_response_body(&response.text()?)?;
-        let mut data: serde_json::Value = serde_json::from_str(&json)?;
+        let mut json =
+            Self::extract_json_from_config_variable_in_response_body(&response.text().unwrap())
+                .unwrap();
+        let mut data: serde_json::Value = serde_json::from_str(&json).unwrap();
 
         let saml_login_form = [
             ("login", &self.email.as_str()),
@@ -178,9 +180,9 @@ impl Credential {
         // Nach Login wird gefragt, ob der Benutzer angemeldet bleiben soll. Braucht ein neues
         // Formular.
         json = Self::extract_json_from_config_variable_in_response_body(
-            &saml_request_response.text()?,
+            &saml_request_response.text().unwrap(),
         )?;
-        data = serde_json::from_str(&json)?;
+        data = serde_json::from_str(&json).unwrap();
         let kmsi_form = [
             // kmsi = keep me signed in
             ("loginOtions", &"1"),
@@ -202,7 +204,7 @@ impl Credential {
         }
         // Antwort von login.microsoftonline.com enthält SAML Response für
         // vorheriges SAML Request.
-        response_body = Html::parse_document(&response.text()?);
+        response_body = Html::parse_document(&response.text().unwrap());
         selector = Selector::parse(r#"input[name="SAMLResponse"#).unwrap();
         let saml_response = match response_body.select(&selector).next() {
             Some(selection) => selection,

@@ -268,7 +268,7 @@ impl Auto {
         let duration: chrono::Duration;
         let mut from: chrono::DateTime<Local>;
         let to: chrono::DateTime<Local>;
-        let config = Configuration::get_config().unwrap();
+        let config = &api.config;
 
         if self.start != "" {
             start = match time::parse_date_time(&self.start) {
@@ -373,19 +373,11 @@ struct Config {
     reset_password: bool,
     /// set the maximum amount of deviation in minutes from specified times and durations when the
     /// randomization option is enabled.
-    #[arg(short, long, default_value = "16")]
+    #[arg(long, default_value = "16")]
     rand_range: String,
 }
 impl Config {
-    fn run(&self) {
-        let mut config = match Configuration::get_config() {
-            Ok(config) => config,
-            Err(_) => {
-                eprintln!("Could not retrieve the contents of the configuration file. Either it does not exist or the contents are invalid.");
-                exit(0)
-            }
-        };
-
+    fn run(&self, config: &mut Configuration) {
         if self.email == "interactive" {
             config.prompt_for_email().unwrap();
             exit(0)
@@ -412,15 +404,25 @@ impl Config {
         }
     }
 }
+
 pub fn parse_args() {
     let cli = Cli::parse();
+    let err = |error: anyhow::Error| {
+        eprintln!("{}", error.to_string());
+        exit(0)
+    };
+    let mut config = Configuration::get_config().unwrap();
+    let old_config = config.clone();
     match cli.command {
-        Commands::ShiftStart(c) => c.run(FactorialApi::get_api()),
-        Commands::ShiftEnd(c) => c.run(FactorialApi::get_api()),
-        Commands::BreakStart(c) => c.run(FactorialApi::get_api()),
-        Commands::BreakEnd(c) => c.run(FactorialApi::get_api()),
-        Commands::Auto(c) => c.run(FactorialApi::get_api()),
-        Commands::Config(c) => c.run(),
+        Commands::ShiftStart(c) => c.run(FactorialApi::get_api(&mut config).unwrap_or_else(err)),
+        Commands::ShiftEnd(c) => c.run(FactorialApi::get_api(&mut config).unwrap_or_else(err)),
+        Commands::BreakStart(c) => c.run(FactorialApi::get_api(&mut config).unwrap_or_else(err)),
+        Commands::BreakEnd(c) => c.run(FactorialApi::get_api(&mut config).unwrap_or_else(err)),
+        Commands::Auto(c) => c.run(FactorialApi::get_api(&mut config).unwrap_or_else(err)),
+        Commands::Config(c) => c.run(&mut config),
+    }
+    if old_config != config {
+        config.write_config().unwrap();
     }
 }
 
