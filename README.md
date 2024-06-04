@@ -97,7 +97,7 @@ Tests can be run with `cargo test` and documentation can be built with `cargo do
 Tracktorial can be configured through the CLI or via the configuration file.
 Depending on your operating system the configuration file can be found in a different location:
 - Linux: `$HOME/.config/tracktorial/config.json`
-- macOS: '$HOME/Library/Application Support/Tracktorial/config.json'
+- macOS: `$HOME/Library/Application Support/Tracktorial/config.json`
 - Windows: `%AppData%\Local\Tracktorial\config.json`
 
 The configuration file has to be valid json, meaning comments are currently not supported.
