@@ -2,9 +2,12 @@ use anyhow::anyhow;
 use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, NaiveTime};
 use rand::Rng;
 
+/// A day where no work has to be done.
 #[derive(Debug, Clone)]
 pub struct FreeDay {
+    /// The day without work
     pub day: DateTime<Local>,
+    /// The part of the day without work
     pub half: HalfDay,
 }
 
@@ -45,6 +48,7 @@ pub enum HalfDay {
     WholeDay,
 }
 
+/// Get a chrono::Duration from a &str in the format of <hours>h<minutes>m<seconds>.
 pub fn parse_duration(time: &str) -> anyhow::Result<Duration> {
     let mut time = String::from(time);
     let mut formatter = String::new();
@@ -74,6 +78,8 @@ pub fn parse_duration(time: &str) -> anyhow::Result<Duration> {
     Ok(duration)
 }
 
+/// Get a chrono::DateTime<Local> from a &str with the format of either
+/// year-month-dayThours:minutes:seconds or HH:MM:SS if the desired date is today.
 pub fn parse_date_time(date_time: &str) -> anyhow::Result<DateTime<Local>> {
     let today = Local::now();
     if date_time.contains('T') {
@@ -96,6 +102,8 @@ pub fn parse_date_time(date_time: &str) -> anyhow::Result<DateTime<Local>> {
     Err(anyhow!("Could not parse the time."))
 }
 
+/// Get a chrono::DateTime<Local> from a &str with the format YYYY-mm-dd or dd.mm.YYYY. The
+/// time at that date will be 00:00:00
 pub fn parse_date(date: &str) -> anyhow::Result<DateTime<Local>> {
     let today = Local::now()
         .with_time(NaiveTime::from_hms_opt(0, 0, 0).unwrap())
@@ -131,6 +139,8 @@ pub fn parse_date(date: &str) -> anyhow::Result<DateTime<Local>> {
     Err(anyhow!("Could not parse date."))
 }
 
+/// Get the mandatory duration for a break depending on the duration of work as required by german
+/// law.
 pub fn get_break_duration(work_duration: chrono::Duration) -> chrono::Duration {
     let mut break_duration = chrono::Duration::new(0, 0).unwrap();
     if work_duration.num_hours() > 6 {
@@ -146,14 +156,20 @@ pub fn get_break_duration(work_duration: chrono::Duration) -> chrono::Duration {
     break_duration
 }
 
+/// A day to get work done.
 #[derive(Debug)]
 pub struct WorkDay {
+    /// The date and time to clock in
     pub clock_in: chrono::DateTime<Local>,
+    /// The date and time to take a break
     pub break_start: chrono::DateTime<Local>,
+    /// The date and time to end the break
     pub break_end: chrono::DateTime<Local>,
+    /// The date and time to stop working
     pub clock_out: chrono::DateTime<Local>,
 }
 impl WorkDay {
+    /// Apply
     pub fn randomize_shift(
         start: chrono::DateTime<Local>,
         duration: chrono::Duration,
