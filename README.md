@@ -1,11 +1,4 @@
 # Tracktorial
-- [Usage](##usage)
-    - [Examples](###examples)
-- [Installation](##installation)
-    - [Building from source](###building-from-source)
-- [Configuration](##Configuration)
-    - [Configuration options](###configuration-options)
-
 ## Usage
 Tracktorial can be run by executing the executable from the terminal.
 ```
