@@ -1,4 +1,6 @@
 # Tracktorial
+Clock in, clock out and take breaks in Factorial from the command line. Also 
+book your shifts for the current booking period all in one go.
 ## Usage
 Tracktorial can be run by executing the executable from the terminal.
 ```
