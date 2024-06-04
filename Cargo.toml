@@ -1,7 +1,11 @@
 [package]
 name = "tracktorial"
-version = "0.1.0"
+authors = ["antonio <antonio.mikley@gmail.com>"]
+version = "0.0.1"
 edition = "2021"
+description = "Manage your Factorial shifts and breaks from the command line"
+repository = "https://github.com/antoniomikley/tracktorial"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
