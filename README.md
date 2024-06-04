@@ -67,6 +67,12 @@ tracktorial auto --start 8:00 --duration 8h --force --randomize
 ```
 
 ## Installation
+### Using Cargo
+1. Install the rust toolchain or cargo using your operating system's package manager or using [rustup](https://rustup.rs/). 
+2. Install Tracktorial
+```
+cargo install tracktorial
+```
 ### Download Release
 Download the latest release. The release includes executables for linux and windows.
 MacOS users will have to build the application from source.
