@@ -59,7 +59,7 @@ Start working at 7:30, work for 8 hours and take a break somewhere inbetween:
 ```
 tracktorial auto --start 7:30 --duration 8h
 ```
-Start working everyday at 8:00 for 8 hours from the 1st of May to the 31st of May 2024 and override existing shifts in this timeframe, also apply a random offset as to not seem to suspiciously consistent:
+Start working everyday at 8:00 for 8 hours from the 1st of May to the 31st of May 2024 and override existing shifts in this timeframe, also apply a random offset as to not seem too suspiciously consistent:
 ```
 tracktorial auto --start 8:00 --duration 8h --force --randomize
 ```
