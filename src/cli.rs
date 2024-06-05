@@ -19,19 +19,20 @@ enum Commands {
     Config(Config),
 }
 
-/// start a new shift
+/// Start a new shift
 #[derive(Args)]
 struct ShiftStart {
-    /// start shift now
+    /// Start shift now
     #[arg(short, long, required_unless_present("time"))]
     now: bool,
-    /// start shift at the specified time
+    /// Start shift at the specified time. Time should have a format of HH:MM:SS or HH:MM
     #[arg(short, long, default_value = "", conflicts_with("now"))]
     time: String,
-    /// start a shift either now or at <TIME> and end it after <DURATION> or its default value
+    /// Start a shift either now or at <TIME> and end it after <DURATION> or at <END>. Duration
+    /// Should have a format of <hours>h<minutes>m<seconds>, <hours>h<minutes>m or <hours>h.
     #[arg(short, long, default_value = "")]
     duration: String,
-    /// the started shift should end at <END>
+    /// The started shift should end at <END> (HH:MM:SS or HH:MM)
     #[arg(
         short,
         long,
@@ -40,7 +41,7 @@ struct ShiftStart {
         conflicts_with("duration")
     )]
     end: String,
-    /// override existing shifts and ignore holidays and vacations
+    /// Override existing shifts
     #[arg(short, long)]
     force: bool,
 }
@@ -104,13 +105,13 @@ impl ShiftStart {
         }
     }
 }
-/// end an ongoing shift
+/// End an ongoing shift
 #[derive(Args)]
 struct ShiftEnd {
-    /// end shift now
+    /// End shift now
     #[arg(short, long, required_unless_present("time"))]
     now: bool,
-    /// end shift at the specified time
+    /// End shift at the specified time. Time should have a format of HH:MM:SS or HH:MM.
     #[arg(short, long, default_value = "", conflicts_with("now"))]
     time: String,
 }
@@ -134,19 +135,20 @@ impl ShiftEnd {
         })
     }
 }
-/// take a break from an ongoing shift
+/// Take a break from an ongoing shift
 #[derive(Args)]
 struct BreakStart {
-    /// start a break now
+    /// Start a break now
     #[arg(short, long, required_unless_present("time"))]
     now: bool,
-    /// start a break at the specified time
+    /// Start a break at the specified time. Time should have a format of HH:MM:SS or HH:MM
     #[arg(short, long, default_value = "", conflicts_with("now"))]
     time: String,
-    /// start a break and end it after the specified duration
+    /// Start a break and end it after the specified duration. Duration should have a format of
+    /// <hours>h<minutes>m<seconds>s, <hours>h<minutes>m or <hours>h.
     #[arg(short, long, default_value = "")]
     duration: String,
-    /// the started shift should end at <END>
+    /// The started shift should end at <END> (HH:MM:SS or HH:MM)
     #[arg(
         short,
         long,
@@ -200,13 +202,13 @@ impl BreakStart {
         }
     }
 }
-/// end an ongoing break
+/// End an ongoing break
 #[derive(Args)]
 struct BreakEnd {
-    /// end break now
+    /// End break now
     #[arg(short, long, required_unless_present("time"))]
     now: bool,
-    /// end break at the specified time
+    /// End break at the specified time. Time should have a format of HH:MM:SS or HH:MM.
     #[arg(short, long, default_value = "", conflicts_with("now"))]
     time: String,
 }
@@ -230,34 +232,34 @@ impl BreakEnd {
         }
     }
 }
-/// manage shifts and breaks automatically
+/// Manage shifts and breaks automatically
 #[derive(Args)]
 struct Auto {
-    /// start to work now, take a break, go home. Uses the default duration if
-    /// <DURATION> or <END> is not given
+    /// Start to work now, take a break, go home. Uses the default duration if
+    /// <DURATION> or <END> is not given.
     #[arg(short, long, conflicts_with("start"), required_unless_present("start"))]
     now: bool,
-    /// start a shift now if <NOW> is set or at <START> with the given duration, also takes an appropriately sized break.
+    /// Start a shift now if <NOW> is set or at <START> with the given duration, also takes an appropriately sized break. Duration should have a format of <hours>h<minutes>m<seconds>s, <hours>h<minutes>m or <hours>h.
     #[arg(short, long, conflicts_with("end"), default_value = "")]
     duration: String,
-    /// start a shift at <START> until <END> or with a given <DURATION>. If neither is present
-    /// the default duration is used
+    /// Start a shift at <START> until <END> or with a given <DURATION>. If neither is present
+    /// the default duration is used. Time should be formated like HH:MM:SS or HH:MM.
     #[arg(long, default_value = "")]
     start: String,
-    /// if <START> is given, start a shift lasting until <STOP>. mutually exclusive with
-    /// <DURATION>
+    /// If <START> is given, start a shift lasting until <STOP>. mutually exclusive with
+    /// <DURATION>. (HH:MM:SS or HH:MM)
     #[arg(long, default_value = "")]
     end: String,
     #[arg(long, requires("to"), default_value = "")]
-    /// start a shift everyday starting at <FROM> and until <TO> using either <START> and <STOP> or <DURATION> or the default value.
+    /// Start a shift everyday starting at <FROM> and until <TO> using either <START> and <STOP> or <DURATION> or the default value for durations. Dates should be formatted like DD.MM.YYYY or YYYY-MM-DD
     from: String,
-    /// requires <FROM>
+    /// Requires <FROM>. (DD.MM.YYYY or YYYY-MM-DD)
     #[arg(long, requires("from"), default_value = "")]
     to: String,
-    /// override existing shifts, ignore holidays and vacations
+    /// Override existing shifts.
     #[arg(short, long)]
     force: bool,
-    /// add a random offset to all time related values
+    /// Add a random offset to all time related values
     #[arg(short, long)]
     randomize: bool,
 }
@@ -362,16 +364,16 @@ impl Auto {
         }
     }
 }
-/// configure tracktorial
+/// Configure tracktorial
 #[derive(Args)]
 struct Config {
-    /// set your email address
+    /// Set your email address
     #[arg(short, long, default_value = "", default_missing_value = "interactive")]
     email: String,
-    /// reset your password
+    /// Reset your password
     #[arg(short, long)]
     reset_password: bool,
-    /// set the maximum amount of deviation in minutes from specified times and durations when the
+    /// Set the maximum amount of deviation in minutes from specified times and durations when the
     /// randomization option is enabled.
     #[arg(long, default_value = "16")]
     rand_range: String,
