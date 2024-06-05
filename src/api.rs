@@ -360,8 +360,10 @@ impl FactorialApi {
                 false,
             ))
             .send()?;
-        if response.status() != StatusCode::CREATED {
-            return Err(anyhow!("Something went wrong. Shift was not created."));
+        match response.status() {
+            StatusCode::CREATED => (),
+            StatusCode::CONFLICT => return Err(anyhow!("There already exists a shift at this time. Try again with the --force flag to override existing shifts.")),
+            _ => return Err(anyhow!("Something went wrong. Shift was not created.")),
         }
         Ok(())
     }
@@ -390,9 +392,12 @@ impl FactorialApi {
                 true,
             ))
             .send()?;
-        if response.status() != StatusCode::CREATED {
-            return Err(anyhow!("Something went wrong. Break was not created."));
+        match response.status() {
+            StatusCode::CREATED => (),
+            StatusCode::CONFLICT => return Err(anyhow!("There already exists a shift at this time. Try again with the --force flag to override existing shifts.")),
+            _ => return Err(anyhow!("Something went wrong. Break was not created.")),
         }
+
         Ok(())
     }
 
