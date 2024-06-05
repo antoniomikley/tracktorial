@@ -408,6 +408,7 @@ impl Config {
     }
 }
 
+/// Parse arguments
 pub fn parse_args() {
     let cli = Cli::parse();
     let err = |error: anyhow::Error| {

@@ -169,7 +169,8 @@ pub struct WorkDay {
     pub clock_out: chrono::DateTime<Local>,
 }
 impl WorkDay {
-    /// Apply
+    /// Get a WorkDay with times for clock in, break start, break end and clock out. Apply a random offset to the starting time and to the break time while still keeping the
+    /// break and work duratinos exact.
     pub fn randomize_shift(
         start: chrono::DateTime<Local>,
         duration: chrono::Duration,
@@ -202,6 +203,7 @@ impl WorkDay {
             clock_out,
         }
     }
+    /// Get a WorkDay with times for clock in, break start, break end and clock out.
     pub fn standard_shift(start: chrono::DateTime<Local>, duration: chrono::Duration) -> Self {
         let clock_in = start;
         let break_start = start
