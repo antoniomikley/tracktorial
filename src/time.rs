@@ -95,7 +95,7 @@ pub fn parse_date_time(date_time: &str) -> anyhow::Result<DateTime<Local>> {
         Ok(hm) => return Ok(today.with_time(hm).unwrap()),
         Err(_) => {}
     };
-    match NaiveTime::parse_from_str(date_time, "%H") {
+    match NaiveTime::parse_from_str(format!("{}:00", date_time).as_str(), "%H:%M") {
         Ok(hours) => return Ok(today.with_time(hours).unwrap()),
         Err(_) => {}
     };
