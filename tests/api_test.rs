@@ -7,9 +7,10 @@ use tracktorial::{api::FactorialApi, config::Configuration, login::Credential};
 
 static API_MUTEX: Lazy<Mutex<FactorialApi>> = Lazy::new(|| {
     let mut config = Configuration::get_config().unwrap();
-    let api = FactorialApi::get_api(&mut config).unwrap();
+    let api = FactorialApi::get_api().unwrap();
     Mutex::new(api)
 });
+
 #[test]
 fn client_authentication_with_invalid_cred() {
     let invalid_cred = Credential::new("", "");
@@ -50,6 +51,17 @@ fn starting_shift() {
 
 #[serial]
 #[test]
+fn cannot_clock_in_if_already_clocked_in() {
+    let sunday = get_next_sunday();
+    let api = API_MUTEX.lock().unwrap();
+    api.shift_start(sunday).unwrap();
+    let result = api.shift_start(sunday);
+    api.delete_all_shifts(sunday).unwrap();
+    assert_eq!(true, result.is_err());
+}
+
+#[serial]
+#[test]
 fn starting_break() {
     let sunday = get_next_sunday();
     let api = API_MUTEX.lock().unwrap();
@@ -61,6 +73,27 @@ fn starting_break() {
     }
     api.delete_all_shifts(sunday).unwrap();
     assert_eq!(true, result.is_ok());
+}
+
+#[serial]
+#[test]
+fn cannot_start_break_if_not_clocked_in() {
+    let sunday = get_next_sunday();
+    let api = API_MUTEX.lock().unwrap();
+    let result = api.break_start(sunday);
+    assert_eq!(true, result.is_err());
+}
+
+#[serial]
+#[test]
+fn cannot_start_break_if_already_on_break() {
+    let sunday = get_next_sunday();
+    let api = API_MUTEX.lock().unwrap();
+    api.shift_start(sunday).unwrap();
+    api.break_start(sunday).unwrap();
+    let result = api.break_start(sunday);
+    api.delete_all_shifts(sunday).unwrap();
+    assert_eq!(true, result.is_err());
 }
 
 #[serial]
@@ -77,6 +110,17 @@ fn ending_break() {
     }
     api.delete_all_shifts(sunday).unwrap();
     assert_eq!(true, result.is_ok());
+}
+
+#[serial]
+#[test]
+fn cannot_end_break_if_not_on_break() {
+    let sunday = get_next_sunday();
+    let api = API_MUTEX.lock().unwrap();
+    api.shift_start(sunday).unwrap();
+    let result = api.break_end(sunday);
+    api.delete_all_shifts(sunday).unwrap();
+    assert_eq!(true, result.is_err());
 }
 
 #[serial]

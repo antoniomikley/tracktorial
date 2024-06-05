@@ -175,10 +175,10 @@ impl WorkDay {
         duration: chrono::Duration,
         max_rand_range: u16,
     ) -> Self {
-        let start_offset: i32 = rand::thread_rng().gen_range(0..=max_rand_range as i32 * 60)
-            - max_rand_range as i32 * 60;
-        let break_offset: i32 = rand::thread_rng().gen_range(0..=max_rand_range as i32 * 60)
-            - max_rand_range as i32 * 60;
+        let start_offset: i32 =
+            rand::thread_rng().gen_range(max_rand_range as i32 * -60..=max_rand_range as i32 * 60);
+        let break_offset: i32 =
+            rand::thread_rng().gen_range(max_rand_range as i32 * -60..=max_rand_range as i32 * 60);
 
         let clock_in = start
             .checked_add_signed(Duration::seconds(start_offset.into()))

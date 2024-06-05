@@ -377,7 +377,8 @@ struct Config {
     rand_range: String,
 }
 impl Config {
-    fn run(&self, config: &mut Configuration) {
+    fn run(&self) {
+        let mut config = Configuration::get_config().expect("Could not retrieve configuration. Either the file does not exist or the user has no persmissions to access it.");
         if self.email == "interactive" {
             config.prompt_for_email().unwrap();
             exit(0)
@@ -411,18 +412,13 @@ pub fn parse_args() {
         eprintln!("{}", error.to_string());
         exit(0)
     };
-    let mut config = Configuration::get_config().unwrap();
-    let old_config = config.clone();
     match cli.command {
-        Commands::ShiftStart(c) => c.run(FactorialApi::get_api(&mut config).unwrap_or_else(err)),
-        Commands::ShiftEnd(c) => c.run(FactorialApi::get_api(&mut config).unwrap_or_else(err)),
-        Commands::BreakStart(c) => c.run(FactorialApi::get_api(&mut config).unwrap_or_else(err)),
-        Commands::BreakEnd(c) => c.run(FactorialApi::get_api(&mut config).unwrap_or_else(err)),
-        Commands::Auto(c) => c.run(FactorialApi::get_api(&mut config).unwrap_or_else(err)),
-        Commands::Config(c) => c.run(&mut config),
-    }
-    if old_config != config {
-        config.write_config().unwrap();
+        Commands::ShiftStart(c) => c.run(FactorialApi::get_api().unwrap_or_else(err)),
+        Commands::ShiftEnd(c) => c.run(FactorialApi::get_api().unwrap_or_else(err)),
+        Commands::BreakStart(c) => c.run(FactorialApi::get_api().unwrap_or_else(err)),
+        Commands::BreakEnd(c) => c.run(FactorialApi::get_api().unwrap_or_else(err)),
+        Commands::Auto(c) => c.run(FactorialApi::get_api().unwrap_or_else(err)),
+        Commands::Config(c) => c.run(),
     }
 }
 

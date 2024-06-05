@@ -124,10 +124,16 @@ impl FactorialApi {
                 .working_hours
                 .div(config.working_week_days.len() as f32);
         }
+
+        config
+            .write_config()
+            .expect("Could not write to config file.");
+
         Ok(FactorialApi { client, config })
     }
 
-    pub fn get_api(config: &mut Configuration) -> anyhow::Result<FactorialApi> {
+    pub fn get_api() -> anyhow::Result<FactorialApi> {
+        let mut config = Configuration::get_config().expect("Could not retrieve configuration file. Either the file does not exists or the user does not have permissions to access it.");
         if config.email.len() == 0 {
             config.prompt_for_email().expect(
                 "Could either not read email from stdin or save it to the configuration file",
