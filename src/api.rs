@@ -231,14 +231,20 @@ impl FactorialApi {
             .send()?;
         let shifts: Vec<serde_json::Value> = response.json()?;
         for shift in shifts {
-            if shift["day"].to_string() == day.to_string() {
-                let shift_id = shift["id"].to_string();
+            let shift_day = shift["day"]
+                .as_u64()
+                .expect("Factorial no longer stores the day as an integer.");
+            if shift_day == day as u64 {
+                let shift_id = shift["id"].as_u64().unwrap().to_string();
                 let response = self
                     .client
                     .delete(ApiEndpoint::Shifts.url() + &shift_id)
                     .send()?;
                 if response.status() != StatusCode::NO_CONTENT {
-                    return Err(anyhow!("what happened"));
+                    return Err(anyhow!(
+                        "Received {}. Should have receive 204",
+                        response.status()
+                    ));
                 }
             }
         }
