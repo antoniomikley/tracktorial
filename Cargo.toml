@@ -1,7 +1,7 @@
 [package]
 name = "tracktorial"
 authors = ["antonio <antonio.mikley@gmail.com>"]
-version = "0.0.2"
+version = "0.0.3"
 edition = "2021"
 description = "Manage your Factorial shifts and breaks from the command line"
 repository = "https://github.com/antoniomikley/tracktorial"
