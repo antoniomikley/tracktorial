@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, NaiveTime};
+use chrono::{DateTime, Duration, Local, NaiveDate, NaiveDateTime, NaiveTime};
 use rand::Rng;
 
 /// A day where no work has to be done.
@@ -73,7 +73,7 @@ pub fn parse_duration(time: &str) -> anyhow::Result<Duration> {
         formatter.push_str("%Ss");
         time.push_str("0s");
     }
-    let naive_time = NaiveTime::parse_from_str(&time, &formatter).expect("here?");
+    let naive_time = NaiveTime::parse_from_str(&time, &formatter)?;
     let duration = naive_time.signed_duration_since(NaiveTime::from_hms_opt(0, 0, 0).unwrap());
     Ok(duration)
 }
@@ -105,34 +105,20 @@ pub fn parse_date_time(date_time: &str) -> anyhow::Result<DateTime<Local>> {
 /// Get a chrono::DateTime<Local> from a &str with the format YYYY-mm-dd or dd.mm.YYYY. The
 /// time at that date will be 00:00:00
 pub fn parse_date(date: &str) -> anyhow::Result<DateTime<Local>> {
-    let today = Local::now()
-        .with_time(NaiveTime::from_hms_opt(0, 0, 0).unwrap())
-        .unwrap();
+    let midnight = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
     match NaiveDate::parse_from_str(date, "%Y-%m-%d") {
         Ok(ymd) => {
-            return Ok(today
-                .with_year(ymd.year_ce().1.try_into().unwrap())
-                .unwrap()
-                .with_month(1)
-                .unwrap()
-                .with_day(ymd.day())
-                .unwrap()
-                .with_month(ymd.month())
-                .unwrap())
+            let naive_dt = NaiveDateTime::from(ymd);
+            let local_dt: DateTime<Local> = naive_dt.and_utc().into();
+            return Ok(local_dt.with_time(midnight).unwrap());
         }
         Err(_) => {}
     };
     match NaiveDate::parse_from_str(date, "%d.%m.%Y") {
         Ok(ymd) => {
-            return Ok(today
-                .with_year(ymd.year_ce().1.try_into().unwrap())
-                .unwrap()
-                .with_month(1)
-                .unwrap()
-                .with_day(ymd.day())
-                .unwrap()
-                .with_month(ymd.month())
-                .unwrap())
+            let naive_dt = NaiveDateTime::from(ymd);
+            let local_dt: DateTime<Local> = naive_dt.and_utc().into();
+            return Ok(local_dt.with_time(midnight).unwrap());
         }
         Err(_) => {}
     }
@@ -142,16 +128,12 @@ pub fn parse_date(date: &str) -> anyhow::Result<DateTime<Local>> {
 /// Get the mandatory duration for a break depending on the duration of work as required by german
 /// law.
 pub fn get_break_duration(work_duration: chrono::Duration) -> chrono::Duration {
-    let mut break_duration = chrono::Duration::new(0, 0).unwrap();
-    if work_duration.num_hours() > 6 {
-        break_duration = break_duration
-            .checked_add(&chrono::Duration::minutes(30))
-            .unwrap();
+    let mut break_duration = chrono::Duration::minutes(0);
+    if work_duration.num_hours() >= 6 {
+        break_duration = break_duration + chrono::Duration::minutes(30);
     }
-    if work_duration.num_hours() > 8 {
-        break_duration = break_duration
-            .checked_add(&chrono::Duration::minutes(15))
-            .unwrap()
+    if work_duration.num_hours() >= 9 {
+        break_duration = break_duration + chrono::Duration::minutes(15);
     }
     break_duration
 }
