@@ -85,7 +85,9 @@ cargo install tracktorial
 Download the latest release. The release includes executables for Linux and Windows.
 MacOS users will have to build the application from source.
 For convenience it is advised to add the application to the PATH environment variable.
-> Note: The executable for Windows is unsigned meaning Windows will not trust the executable and ring all alarm bells. Either you can them or build from source.
+
+> Note: The executable for Windows is unsigned meaning Windows will not trust the executable and ring all alarm bells. Either ignore them or build from source.
+
 ### Building from source
 1. Install the [rust toolchain](https://rustup.rs/)
 2. Clone the repo
