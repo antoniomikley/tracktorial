@@ -343,9 +343,11 @@ impl Auto {
                 }
                 Err(_) => {}
             }
+
             if self.force {
                 api.delete_all_shifts(from).unwrap();
             }
+
             let work_day: time::WorkDay;
             start = from.with_time(start.time()).unwrap();
             if self.randomize {
@@ -354,12 +356,19 @@ impl Auto {
                 work_day = time::WorkDay::standard_shift(start, duration);
             }
 
-            api.make_shift(work_day.clock_in, work_day.break_start)
-                .unwrap();
-            api.make_break(work_day.break_start, work_day.break_end)
-                .unwrap();
-            api.make_shift(work_day.break_end, work_day.clock_out)
-                .unwrap();
+            // Don't take a break if it's 0 minutes long
+            if work_day.break_start == work_day.break_end {
+                api.make_shift(work_day.clock_in, work_day.clock_out)
+                    .unwrap();
+            } else {
+                api.make_shift(work_day.clock_in, work_day.break_start)
+                    .unwrap();
+                api.make_break(work_day.break_start, work_day.break_end)
+                    .unwrap();
+                api.make_shift(work_day.break_end, work_day.clock_out)
+                    .unwrap();
+            }
+
             from = from.checked_add_days(chrono::Days::new(1)).unwrap();
         }
     }

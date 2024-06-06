@@ -62,7 +62,7 @@ impl FactorialApi {
     /// - could not retrieve your employee id
     pub fn new(
         credential: login::Credential,
-        mut config: Configuration,
+        config: &mut Configuration,
     ) -> anyhow::Result<FactorialApi> {
         // Attempt to login to Factorial
         let client = credential.authenticate_client()?;
@@ -129,7 +129,10 @@ impl FactorialApi {
             .write_config()
             .expect("Could not write to config file.");
 
-        Ok(FactorialApi { client, config })
+        Ok(FactorialApi {
+            client,
+            config: config.clone(),
+        })
     }
 
     pub fn get_api() -> anyhow::Result<FactorialApi> {
@@ -147,7 +150,7 @@ impl FactorialApi {
                 cred.ask_for_password().expect("Could not access keyring.")
             }
 
-            let _api = match FactorialApi::new(cred.clone(), config.clone()) {
+            let _api = match FactorialApi::new(cred.clone(), &mut config) {
                 Ok(api) => return Ok(api),
                 Err(e) => {
                     eprintln!("{}", e.to_string());

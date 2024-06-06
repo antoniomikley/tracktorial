@@ -37,7 +37,7 @@ pub struct Configuration {
 }
 impl Configuration {
     /// Generates a default configuration
-    fn default() -> Configuration {
+    pub fn default() -> Configuration {
         Configuration {
             email: default_mail(),
             location_type: default_location(),

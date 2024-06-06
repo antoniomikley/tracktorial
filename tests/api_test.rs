@@ -6,7 +6,6 @@ use serial_test::serial;
 use tracktorial::{api::FactorialApi, config::Configuration, login::Credential};
 
 static API_MUTEX: Lazy<Mutex<FactorialApi>> = Lazy::new(|| {
-    let mut config = Configuration::get_config().unwrap();
     let api = FactorialApi::get_api().unwrap();
     Mutex::new(api)
 });
@@ -14,8 +13,8 @@ static API_MUTEX: Lazy<Mutex<FactorialApi>> = Lazy::new(|| {
 #[test]
 fn client_authentication_with_invalid_cred() {
     let invalid_cred = Credential::new("", "");
-    let config = Configuration::get_config().unwrap();
-    let api = FactorialApi::new(invalid_cred, config);
+    let mut config = Configuration::get_config().unwrap();
+    let api = FactorialApi::new(invalid_cred, &mut config);
     assert_eq!(true, api.is_err());
 }
 
@@ -30,7 +29,7 @@ fn client_authentication_with_valid_cred() {
     if valid_cred.get_password().is_err() {
         valid_cred.ask_for_password().unwrap();
     }
-    let api = FactorialApi::new(valid_cred, config);
+    let api = FactorialApi::new(valid_cred, &mut config);
     assert_eq!(true, api.is_ok());
 }
 
