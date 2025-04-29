@@ -115,14 +115,16 @@ impl Credential {
 
         // Wird umgeleitet zu factorial-production.auth... amazoncognito
         if saml_login_response.status() != StatusCode::FOUND {
-            return Err(anyhow!("Request should have been redirected, but was not."));
+            return Err(anyhow!(
+                "Tried to start SAML Login. Request should have been redirected, but was not."
+            ));
         }
         let mut redirect_url = saml_login_response.headers().get(header::LOCATION).unwrap();
         let mut response = client.get(redirect_url.to_str()?).send()?;
 
         // Wird erneut umgeleitet zu login.microsoftonline.com. Erstellt SAML Request.
         if response.status() != StatusCode::FOUND {
-            return Err(anyhow!("Request should have been redirected, but was not."));
+            return Err(anyhow!("Redirection to Identity Provider failed. Request should have been redirected, but was not."));
         }
         redirect_url = response.headers().get(header::LOCATION).unwrap();
         let request = client.get(redirect_url.to_str()?).build()?;
@@ -173,15 +175,15 @@ impl Credential {
 
         // Schicke Login Formular ab. Antwort enthält Daten für das nächste Formular.
         let saml_request_response = client.post(saml_login_link).form(&saml_login_form).send()?;
-        if saml_request_response.status() != StatusCode::OK {
-            return Err(anyhow!("Should have received 200 OK, but did not."));
+        let status = saml_request_response.status();
+        let body = saml_request_response.text().unwrap();
+        if status != StatusCode::OK {
+            return Err(anyhow!("Failed at login form. Should have received 200 OK, but did not. Either email or password are wrong or the login form has changed and broke."));
         }
 
         // Nach Login wird gefragt, ob der Benutzer angemeldet bleiben soll. Braucht ein neues
         // Formular.
-        json = Self::extract_json_from_config_variable_in_response_body(
-            &saml_request_response.text().unwrap(),
-        )?;
+        json = Self::extract_json_from_config_variable_in_response_body(&body)?;
         data = serde_json::from_str(&json).unwrap();
         let kmsi_form = [
             // kmsi = keep me signed in
@@ -190,7 +192,7 @@ impl Credential {
             ("ctx", &data["sCtx"].as_str().unwrap_or("")),
             ("hgprequestid", &data["sessionId"].as_str().unwrap_or("")),
             ("flowToken", &data["sFT"].as_str().unwrap_or("")),
-            ("i19", &"2456"),
+            ("i19", &"4684"),
             ("type", &"28"),
             ("DontShowAgain", &"true"),
         ];
@@ -200,7 +202,9 @@ impl Credential {
             .send()?;
 
         if response.status() != StatusCode::OK {
-            return Err(anyhow!("Should have received 200 OK, but did not."));
+            return Err(anyhow!(
+                "Failed at KMSI form. Should have received 200 OK, but did not."
+            ));
         }
         // Antwort von login.microsoftonline.com enthält SAML Response für
         // vorheriges SAML Request.
@@ -232,7 +236,7 @@ impl Credential {
         // Wird weitergeleitet zu api.factorialhr.com. Setzt neuen
         // factorial_session_cookie.
         if response.status() != StatusCode::FOUND {
-            return Err(anyhow!("Request should have been redirected, but was not."));
+            return Err(anyhow!("Return to Factorial. Request should have been redirected, but was not."));
         }
         redirect_url = response.headers().get(header::LOCATION).unwrap();
         client.get(redirect_url.to_str()?).send()?;
